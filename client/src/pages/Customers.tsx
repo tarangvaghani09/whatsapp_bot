@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import {
   useListCustomers,
-  useGetCustomer,
   useBroadcastToCustomers,
   usePatchCustomerTags,
   useSendQuickReply,
@@ -234,16 +233,19 @@ function TagEditor({ customerId, currentTags, businessId, onUpdated }: {
 
 // ── Customer Detail Dialog ────────────────────────────────────────────────────
 
-function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
-  id: number | null; phone: string; name: string | null; open: boolean; onClose: () => void; businessId: number | undefined;
+type ChatMessage = { id: number; content: string; direction: string; replyType: string | null; createdAt: string };
+
+function CustomerDetail({ id, phone, name, createdAt, initialTags, open, onClose, businessId }: {
+  id: number | null;
+  phone: string;
+  name: string | null;
+  createdAt: string | null;
+  initialTags: string[];
+  open: boolean;
+  onClose: () => void;
+  businessId: number | undefined;
 }) {
-  const { data, refetch, isFetching } = useGetCustomer(id ?? 0, { businessId }, {
-    query: {
-      enabled: !!id,
-      refetchInterval: open ? 5000 : false,
-      refetchIntervalInBackground: false,
-    },
-  });
+  const PAGE_SIZE = 10;
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const prevMsgCount = useRef(0);
@@ -251,40 +253,134 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
   const [localTags, setLocalTags] = useState<string[]>([]);
   const [replyText, setReplyText] = useState("");
   const [showCanned, setShowCanned] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
   const { toast } = useToast();
   const sendReply = useSendQuickReply();
   const { data: cannedResponses = [] } = useListCannedResponses({ businessId }, { query: { enabled: open && !!businessId } });
 
   useEffect(() => {
-    if (data) setLocalTags(data.tags ?? []);
-  }, [data]);
+    setLocalTags(initialTags ?? []);
+  }, [initialTags, id]);
 
-  // Scroll to bottom on open and whenever new messages arrive (not on manual scrolling up)
+  async function fetchMessagesPage(targetPage: number) {
+    if (!id || businessId === undefined) return null;
+    const params = new URLSearchParams({
+      businessId: String(businessId),
+      customerId: String(id),
+      page: String(targetPage),
+      limit: String(PAGE_SIZE),
+    });
+    const res = await fetch(`/api/messages?${params.toString()}`);
+    if (!res.ok) return null;
+    const payload: { messages: ChatMessage[]; total: number; page: number; limit: number } = await res.json();
+    return payload;
+  }
+
   useEffect(() => {
-    const count = data?.messages.length ?? 0;
+    let alive = true;
+    if (!open || !id) return;
+    setLoadingInitial(true);
+    setMessages([]);
+    setTotal(0);
+    setPage(1);
+    (async () => {
+      const payload = await fetchMessagesPage(1);
+      if (!alive) return;
+      const latestAsc = (payload?.messages ?? []).slice().reverse();
+      setMessages(latestAsc);
+      setTotal(payload?.total ?? 0);
+      setLoadingInitial(false);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior }), 60);
+    })();
+    return () => { alive = false; };
+  }, [open, id, businessId]);
+
+  useEffect(() => {
+    if (!open || !id || businessId === undefined) return;
+    const timer = setInterval(async () => {
+      setIsPolling(true);
+      const payload = await fetchMessagesPage(1);
+      setIsPolling(false);
+      if (!payload) return;
+      const latestAsc = payload.messages.slice().reverse();
+      setTotal(payload.total);
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        const appended = latestAsc.filter((m) => !seen.has(m.id));
+        if (appended.length === 0) return prev;
+        const next = [...prev, ...appended];
+        const el = scrollAreaRef.current;
+        const nearBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        if (nearBottom) setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+        return next;
+      });
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [open, id, businessId]);
+
+  useEffect(() => {
+    const count = messages.length;
     const isNew = count > prevMsgCount.current;
     prevMsgCount.current = count;
 
     if (!open || count === 0) return;
 
-    // Always scroll on first open; only scroll on new messages if near bottom
     const el = scrollAreaRef.current;
     const nearBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
 
     if (isNew && nearBottom) {
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
-    } else if (!isNew && open) {
-      // Initial open — jump instantly
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior }), 80);
     }
-  }, [open, data?.messages.length]);
+  }, [open, messages.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const el = scrollAreaRef.current;
+    if (!el) return;
+
+    const onScroll = async () => {
+      if (loadingOlder) return;
+      if (el.scrollTop > 24) return;
+      if (messages.length >= total) return;
+
+      setLoadingOlder(true);
+      const prevHeight = el.scrollHeight;
+      const nextPage = page + 1;
+      const payload = await fetchMessagesPage(nextPage);
+      const olderAsc = (payload?.messages ?? []).slice().reverse();
+
+      if (olderAsc.length > 0) {
+        setMessages((prev) => [...olderAsc, ...prev]);
+        setPage(nextPage);
+        setTotal(payload?.total ?? total);
+        setTimeout(() => {
+          const newHeight = el.scrollHeight;
+          el.scrollTop = newHeight - prevHeight;
+        }, 0);
+      }
+      setLoadingOlder(false);
+    };
+
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [open, page, total, messages.length, loadingOlder, id, businessId]);
 
   async function handleSendReply() {
     if (!id || !replyText.trim() || sendReply.isPending) return;
     try {
       await sendReply.mutateAsync({ id, data: { message: replyText.trim() }, params: { businessId } });
       setReplyText("");
-      await refetch();
+      const payload = await fetchMessagesPage(1);
+      const latestAsc = (payload?.messages ?? []).slice().reverse();
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        return [...prev, ...latestAsc.filter((m) => !seen.has(m.id))];
+      });
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
       toast({ title: "Message sent", description: "Your reply was delivered to the conversation." });
     } catch {
@@ -305,7 +401,6 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent hideClose className="p-0 overflow-hidden sm:max-w-md sm:rounded-2xl flex flex-col max-h-[88vh]">
-        {/* ── Header ── */}
         <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-500 flex-shrink-0">
           <button
             onClick={onClose}
@@ -321,27 +416,25 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
           <div className="flex-1 min-w-0">
             <p className="text-white font-semibold text-sm leading-tight truncate">{displayName}</p>
             {name && <p className="text-white/70 text-xs leading-tight truncate">{phone}</p>}
-            {data && (
+            {!!createdAt && (
               <p className="text-white/55 text-[10px] leading-tight">
-                {data.messages.length} messages · since {format(new Date(data.createdAt), "MMM d, yyyy")}
+                {total} messages · since {format(new Date(createdAt), "MMM d, yyyy")}
               </p>
             )}
           </div>
 
-          {/* Right side: message count pill + live dot + close */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="flex flex-col items-center gap-0.5">
               <div className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full">
                 <MessageCircle className="w-3 h-3 text-white/80" />
-                <span className="text-white text-xs font-bold leading-none">{data?.messages.length ?? "…"}</span>
+                <span className="text-white text-xs font-bold leading-none">{total}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${isFetching ? "bg-emerald-300 animate-ping" : "bg-white/30"}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${isPolling ? "bg-emerald-300 animate-ping" : "bg-white/30"}`} />
                 <span className="text-white/50 text-[9px] leading-none">live</span>
               </div>
             </div>
 
-            {/* Attractive close button */}
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-full bg-white/15 hover:bg-red-400/80 flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 active:scale-95 group"
@@ -352,25 +445,17 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
           </div>
         </div>
 
-        {/* ── Tags row ── */}
         {id && (
           <div className="px-4 py-2.5 bg-white border-b border-gray-100 flex items-center gap-2.5 flex-shrink-0 min-h-[46px]">
             <div className="w-5 h-5 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
               <Tag className="w-3 h-3 text-gray-400" />
             </div>
-            {data ? (
-              <TagEditor
-                customerId={id}
-                currentTags={localTags}
-                businessId={businessId}
-                onUpdated={(tags) => { setLocalTags(tags); refetch(); }}
-              />
-            ) : (
-              <div className="flex gap-1.5">
-                <div className="h-6 w-16 bg-gray-100 rounded-full animate-pulse" />
-                <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse" />
-              </div>
-            )}
+            <TagEditor
+              customerId={id}
+              currentTags={localTags}
+              businessId={businessId}
+              onUpdated={(tags) => { setLocalTags(tags); }}
+            />
           </div>
         )}
 
@@ -379,7 +464,7 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
           className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
           style={{ background: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23e5ddd5'/%3E%3C/svg%3E\")" }}
         >
-          {!data ? (
+          {loadingInitial ? (
             <div className="flex flex-col gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className={`flex ${i % 2 === 0 ? "" : "justify-end"}`}>
@@ -387,7 +472,7 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
                 </div>
               ))}
             </div>
-          ) : data.messages.length === 0 ? (
+          ) : messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="bg-white/80 rounded-2xl px-5 py-4 text-center shadow-sm">
                 <MessageCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -399,10 +484,17 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
             <>
               <div className="flex justify-center">
                 <span className="bg-white/70 text-gray-500 text-[10px] font-medium px-3 py-1 rounded-full shadow-sm backdrop-blur-sm">
-                  Customer since {format(new Date(data.createdAt), "MMMM d, yyyy")}
+                  Customer since {createdAt ? format(new Date(createdAt), "MMMM d, yyyy") : "today"}
                 </span>
               </div>
-              {data.messages.map((msg) => (
+              {loadingOlder && (
+                <div className="flex justify-center">
+                  <span className="bg-white/70 text-gray-500 text-[10px] font-medium px-2.5 py-0.5 rounded-full shadow-sm">
+                    Loading older messages...
+                  </span>
+                </div>
+              )}
+              {messages.map((msg) => (
                 <ChatBubble key={msg.id} msg={msg} />
               ))}
               <div ref={bottomRef} />
@@ -411,7 +503,6 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
         </div>
 
         <div className="bg-[#f0f0f0] border-t border-gray-200 flex-shrink-0">
-          {/* Canned responses picker */}
           {showCanned && cannedResponses.length > 0 && (
             <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-200/80 max-h-36 overflow-y-auto space-y-1">
               {cannedResponses.map((cr) => (
@@ -428,7 +519,7 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
           )}
           {showCanned && cannedResponses.length === 0 && (
             <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-200/80 text-center text-xs text-gray-400 py-3">
-              No canned responses yet — add some in <span className="font-medium text-green-600">Canned Responses</span>
+              No canned responses yet � add some in <span className="font-medium text-green-600">Canned Responses</span>
             </div>
           )}
           <div className="px-3 py-2.5 flex items-end gap-2">
@@ -444,7 +535,7 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type a reply… (Enter to send)"
+              placeholder="Type a reply... (Enter to send)"
               disabled={sendReply.isPending}
               className="flex-1 resize-none rounded-2xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 transition-all disabled:opacity-60 max-h-28 overflow-y-auto leading-relaxed"
               style={{ minHeight: "38px" }}
@@ -470,8 +561,6 @@ function CustomerDetail({ id, phone, name, open, onClose, businessId }: {
   );
 }
 
-// ── Broadcast Modal ───────────────────────────────────────────────────────────
-
 const PLACEHOLDERS = [
   { label: "{name}", title: "Customer name" },
   { label: "{phone}", title: "Customer phone" },
@@ -479,9 +568,9 @@ const PLACEHOLDERS = [
 ];
 
 const TEMPLATES = [
-  { label: "Special offer", text: "Hi {name}! 👋 We have a special offer just for you at {business}. Reply to find out more!" },
-  { label: "Reminder", text: "Hi {name}! 🌟 Just a friendly reminder from {business}. We'd love to see you again soon!" },
-  { label: "New service", text: "Hi {name}! We've added something new at {business} that we think you'll love. Reply for details! 😊" },
+  { label: "Special offer", text: "Hi {name}! We have a special offer just for you at {business}. Reply to find out more!" },
+  { label: "Reminder", text: "Hi {name}! Just a friendly reminder from {business}. We'd love to see you again soon!" },
+  { label: "New service", text: "Hi {name}! We've added something new at {business} that we think you'll love. Reply for details!" },
 ];
 
 function BroadcastModal({
@@ -637,7 +726,7 @@ export default function CustomersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState<string | undefined>(undefined);
-  const [detail, setDetail] = useState<{ id: number; phone: string; name: string | null } | null>(null);
+  const [detail, setDetail] = useState<{ id: number; phone: string; name: string | null; createdAt: string; tags: string[] } | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
   const [broadcastOpen, setBroadcastOpen] = useState(false);
 
@@ -750,7 +839,7 @@ export default function CustomersPage() {
             return (
               <div
                 key={c.id}
-                onClick={() => setDetail({ id: c.id, phone: c.phone, name: c.name ?? null })}
+                onClick={() => setDetail({ id: c.id, phone: c.phone, name: c.name ?? null, createdAt: c.createdAt, tags: c.tags ?? [] })}
                 className={`w-full text-left bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-150 border overflow-hidden cursor-pointer ${isChecked ? "border-violet-300 ring-2 ring-violet-100" : "border-gray-100 hover:border-gray-200"}`}
               >
                 <div className="p-4 flex items-center gap-3">
@@ -830,6 +919,8 @@ export default function CustomersPage() {
         id={detail?.id ?? null}
         phone={detail?.phone ?? ""}
         name={detail?.name ?? null}
+        createdAt={detail?.createdAt ?? null}
+        initialTags={detail?.tags ?? []}
         open={!!detail}
         onClose={() => { setDetail(null); invalidateCustomers(); }}
         businessId={businessId}
@@ -844,4 +935,5 @@ export default function CustomersPage() {
     </div>
   );
 }
+
 
