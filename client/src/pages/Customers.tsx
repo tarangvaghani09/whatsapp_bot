@@ -382,7 +382,7 @@ function CustomerDetail({ id, phone, name, createdAt, initialTags, open, onClose
         return [...prev, ...latestAsc.filter((m) => !seen.has(m.id))];
       });
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
-      toast({ title: "Message sent", description: "Your reply was delivered to the conversation." });
+      toast({ title: "Message sent", description: "Your reply was delivered to the conversation.", variant: "success" });
     } catch {
       toast({ title: "Failed to send", variant: "destructive" });
     }

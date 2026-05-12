@@ -21,7 +21,9 @@ export function Toaster() {
           ) : variant === "destructive" ? (
             <XCircle className="w-5 h-5 text-white shrink-0" />
           ) : (
-            <Info className="w-5 h-5 text-gray-500 shrink-0" />
+            <span className="w-8 h-8 rounded-full bg-sky-100 border border-sky-200 flex items-center justify-center shrink-0">
+              <Info className="w-4 h-4 text-sky-700" />
+            </span>
           )
 
         return (
@@ -34,7 +36,7 @@ export function Toaster() {
               </div>
             </div>
             {action}
-            <ToastClose className={variant === "success" || variant === "destructive" ? "text-white/70 hover:text-white" : ""} />
+            <ToastClose className={variant === "success" || variant === "destructive" ? "text-white/70 hover:text-white" : "text-slate-400 hover:text-slate-600"} />
           </Toast>
         )
       })}
