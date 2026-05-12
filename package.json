@@ -1,0 +1,22 @@
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "dev": "concurrently -n server,client -c green,cyan \"pnpm run dev:server\" \"pnpm run dev:client\"",
+    "dev:server": "dotenv -e .env -v PORT=8080 -- pnpm --filter @workspace/api-server run dev",
+    "dev:client": "dotenv -e .env -v PORT=5173 -v BASE_PATH=/ -- pnpm --filter @workspace/admin-dashboard run dev",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "pnpm -r --filter \"./lib/**\" --if-present run typecheck",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter @workspace/admin-dashboard --filter @workspace/api-server --filter @workspace/mockup-sandbox --filter @workspace/scripts --if-present run typecheck"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "concurrently": "^9.2.1",
+    "dotenv-cli": "^8.0.0",
+    "typescript": "~5.9.2",
+    "prettier": "^3.8.1"
+  }
+}

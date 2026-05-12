@@ -1,0 +1,28 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="180" height="180" rx="40" fill="url(#grad)"/>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <!-- Bot head -->
+  <rect x="42" y="58" width="96" height="76" rx="18" fill="white" fill-opacity="0.95"/>
+  <!-- Eyes -->
+  <rect x="62" y="80" width="16" height="16" rx="8" fill="#6366f1"/>
+  <rect x="102" y="80" width="16" height="16" rx="8" fill="#6366f1"/>
+  <!-- Eye shine -->
+  <circle cx="67" cy="85" r="3" fill="white"/>
+  <circle cx="107" cy="85" r="3" fill="white"/>
+  <!-- Mouth -->
+  <rect x="66" y="108" width="48" height="8" rx="4" fill="#6366f1" fill-opacity="0.25"/>
+  <rect x="70" y="110" width="16" height="4" rx="2" fill="#6366f1"/>
+  <rect x="94" y="110" width="16" height="4" rx="2" fill="#6366f1"/>
+  <!-- Antenna -->
+  <rect x="86" y="36" width="8" height="24" rx="4" fill="white" fill-opacity="0.9"/>
+  <circle cx="90" cy="32" r="8" fill="white" fill-opacity="0.9"/>
+  <circle cx="90" cy="32" r="4" fill="#a78bfa"/>
+  <!-- Ears -->
+  <rect x="30" y="82" width="14" height="20" rx="7" fill="white" fill-opacity="0.9"/>
+  <rect x="136" y="82" width="14" height="20" rx="7" fill="white" fill-opacity="0.9"/>
+</svg>

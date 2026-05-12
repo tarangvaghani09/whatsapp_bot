@@ -1,0 +1,1541 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: WhatsApp AI Business Bot API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: businesses
+    description: Business management
+  - name: customers
+    description: Customer management
+  - name: messages
+    description: Message history
+  - name: faqs
+    description: FAQ management
+  - name: services
+    description: Service/pricing management
+  - name: bookings
+    description: Booking management
+  - name: webhook
+    description: WhatsApp webhook
+  - name: dashboard
+    description: Dashboard analytics
+  - name: ai-usage
+    description: OpenAI usage logs
+  - name: settings
+    description: Business settings
+  - name: canned-responses
+    description: Canned reply snippets
+  - name: simulate
+    description: Bot message simulator
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # Businesses
+  /businesses:
+    get:
+      operationId: listBusinesses
+      tags: [businesses]
+      summary: List all businesses
+      responses:
+        "200":
+          description: Business list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Business"
+    post:
+      operationId: createBusiness
+      tags: [businesses]
+      summary: Create a business
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessBody"
+      responses:
+        "201":
+          description: Created business
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Business"
+
+  /businesses/{id}:
+    get:
+      operationId: getBusiness
+      tags: [businesses]
+      summary: Get a business by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Business
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Business"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateBusiness
+      tags: [businesses]
+      summary: Update a business
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBusinessBody"
+      responses:
+        "200":
+          description: Updated business
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Business"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteBusiness
+      tags: [businesses]
+      summary: Delete a business
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Customers
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List all customers
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: tag
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerListResponse"
+
+  /customers/stats:
+    get:
+      operationId: getCustomerStats
+      tags: [customers]
+      summary: Get customer statistics
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "200":
+          description: Customer stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerStats"
+
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get customer with message history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "200":
+          description: Customer detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetail"
+        "404":
+          description: Not found
+
+  /customers/{id}/tags:
+    patch:
+      operationId: patchCustomerTags
+      tags: [customers]
+      summary: Set tags for a customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchCustomerTagsBody"
+      responses:
+        "200":
+          description: Updated customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDetail"
+        "404":
+          description: Not found
+
+  /customers/{id}/reply:
+    post:
+      operationId: sendQuickReply
+      tags: [customers]
+      summary: Send a manual reply to a single customer
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuickReplyBody"
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuickReplyResult"
+        "400":
+          description: Bad request
+        "404":
+          description: Customer not found
+
+  /customers/broadcast:
+    post:
+      operationId: broadcastToCustomers
+      tags: [customers]
+      summary: Send a personalised WhatsApp message to selected customers
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BroadcastBody"
+      responses:
+        "200":
+          description: Broadcast result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastResult"
+        "400":
+          description: Bad request
+
+  # Messages
+  /messages:
+    get:
+      operationId: listMessages
+      tags: [messages]
+      summary: List all messages
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: customerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Message list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageListResponse"
+
+  # FAQs
+  /faqs:
+    get:
+      operationId: listFaqs
+      tags: [faqs]
+      summary: List all FAQs
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "200":
+          description: FAQ list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Faq"
+    post:
+      operationId: createFaq
+      tags: [faqs]
+      summary: Create a new FAQ
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFaqBody"
+      responses:
+        "201":
+          description: Created FAQ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Faq"
+
+  /faqs/{id}:
+    patch:
+      operationId: updateFaq
+      tags: [faqs]
+      summary: Update a FAQ
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFaqBody"
+      responses:
+        "200":
+          description: Updated FAQ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Faq"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteFaq
+      tags: [faqs]
+      summary: Delete a FAQ
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "204":
+          description: Deleted
+
+  # Canned Responses
+  /canned-responses:
+    get:
+      operationId: listCannedResponses
+      tags: [canned-responses]
+      summary: List all canned responses
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "200":
+          description: Canned response list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CannedResponse"
+    post:
+      operationId: createCannedResponse
+      tags: [canned-responses]
+      summary: Create a canned response
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CannedResponseBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CannedResponse"
+        "400":
+          description: Bad request
+
+  /canned-responses/{id}:
+    patch:
+      operationId: updateCannedResponse
+      tags: [canned-responses]
+      summary: Update a canned response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CannedResponseBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CannedResponse"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteCannedResponse
+      tags: [canned-responses]
+      summary: Delete a canned response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "204":
+          description: Deleted
+
+  # Services
+  /services:
+    get:
+      operationId: listServices
+      tags: [services]
+      summary: List all services
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "200":
+          description: Service list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+    post:
+      operationId: createService
+      tags: [services]
+      summary: Create a service
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateServiceBody"
+      responses:
+        "201":
+          description: Created service
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+
+  /services/{id}:
+    patch:
+      operationId: updateService
+      tags: [services]
+      summary: Update a service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateServiceBody"
+      responses:
+        "200":
+          description: Updated service
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteService
+      tags: [services]
+      summary: Delete a service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "204":
+          description: Deleted
+
+  # Bookings
+  /bookings:
+    get:
+      operationId: listBookings
+      tags: [bookings]
+      summary: List all bookings
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected, completed]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Booking list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingListResponse"
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Create a booking
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingBody"
+      responses:
+        "201":
+          description: Created booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}:
+    patch:
+      operationId: updateBooking
+      tags: [bookings]
+      summary: Approve, reject, or complete a booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBookingBody"
+      responses:
+        "200":
+          description: Updated booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteBooking
+      tags: [bookings]
+      summary: Delete a booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "204":
+          description: Deleted
+
+  # WhatsApp Webhook
+  /webhook:
+    get:
+      operationId: verifyWebhook
+      tags: [webhook]
+      summary: WhatsApp webhook verification
+      parameters:
+        - name: hub.mode
+          in: query
+          schema:
+            type: string
+        - name: hub.verify_token
+          in: query
+          schema:
+            type: string
+        - name: hub.challenge
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Verification challenge
+        "403":
+          description: Forbidden
+    post:
+      operationId: receiveWebhook
+      tags: [webhook]
+      summary: Receive WhatsApp messages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+
+  # Dashboard
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get overall dashboard statistics
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  # Settings
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get business settings
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      responses:
+        "200":
+          description: Business settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessSettings"
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update business settings
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsBody"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessSettings"
+
+  # Simulate
+  /simulate:
+    post:
+      operationId: simulateMessage
+      tags: [simulate]
+      summary: Simulate bot response without sending to WhatsApp
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateMessageBody"
+      responses:
+        "200":
+          description: Simulated bot response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulateMessageResponse"
+
+  # AI Usage
+  /ai-usage:
+    get:
+      operationId: listAiUsage
+      tags: [ai-usage]
+      summary: List AI usage logs
+      parameters:
+        - $ref: "#/components/parameters/BusinessIdParam"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: AI usage logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiUsageListResponse"
+
+components:
+  parameters:
+    BusinessIdParam:
+      name: businessId
+      in: query
+      description: Business ID to scope the request to. Defaults to the first business if not provided.
+      schema:
+        type: integer
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Business:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        whatsappPhoneNumberId:
+          type: ["string", "null"]
+        whatsappAccessToken:
+          type: ["string", "null"]
+        verifyToken:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - whatsappPhoneNumberId
+        - whatsappAccessToken
+        - verifyToken
+        - createdAt
+        - updatedAt
+
+    CreateBusinessBody:
+      type: object
+      properties:
+        name:
+          type: string
+        whatsappPhoneNumberId:
+          type: string
+        whatsappAccessToken:
+          type: string
+        verifyToken:
+          type: string
+      required:
+        - name
+
+    UpdateBusinessBody:
+      type: object
+      properties:
+        name:
+          type: string
+        whatsappPhoneNumberId:
+          type: string
+        whatsappAccessToken:
+          type: string
+        verifyToken:
+          type: string
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        name:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        messageCount:
+          type: integer
+        lastMessageAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - phone
+        - name
+        - tags
+        - createdAt
+        - updatedAt
+        - messageCount
+        - lastMessageAt
+
+    CustomerDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        phone:
+          type: string
+        name:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+      required:
+        - id
+        - phone
+        - name
+        - tags
+        - createdAt
+        - messages
+
+    CustomerListResponse:
+      type: object
+      properties:
+        customers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Customer"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - customers
+        - total
+        - page
+        - limit
+
+    CustomerStats:
+      type: object
+      properties:
+        total:
+          type: integer
+        newToday:
+          type: integer
+        newThisWeek:
+          type: integer
+        activeToday:
+          type: integer
+      required:
+        - total
+        - newToday
+        - newThisWeek
+        - activeToday
+
+    PatchCustomerTagsBody:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - tags
+
+    QuickReplyBody:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+      required:
+        - message
+
+    QuickReplyResult:
+      type: object
+      properties:
+        sent:
+          type: boolean
+        messageId:
+          type: integer
+      required:
+        - sent
+        - messageId
+
+    BroadcastBody:
+      type: object
+      properties:
+        customerIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+        message:
+          type: string
+          minLength: 1
+      required:
+        - customerIds
+        - message
+
+    BroadcastResult:
+      type: object
+      properties:
+        sent:
+          type: integer
+        failed:
+          type: integer
+        total:
+          type: integer
+      required:
+        - sent
+        - failed
+        - total
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        direction:
+          type: string
+          enum: [inbound, outbound]
+        content:
+          type: string
+        replyType:
+          type: string
+          enum: [faq, service, booking, ai, none, broadcast, rating]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - customerId
+        - direction
+        - content
+        - replyType
+        - createdAt
+
+    MessageListResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - messages
+        - total
+        - page
+        - limit
+
+    CannedResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - businessId
+        - title
+        - content
+        - createdAt
+        - updatedAt
+
+    CannedResponseBody:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+          minLength: 1
+      required:
+        - title
+        - content
+
+    Faq:
+      type: object
+      properties:
+        id:
+          type: integer
+        question:
+          type: string
+        answer:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        hitCount:
+          type: integer
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - question
+        - answer
+        - keywords
+        - hitCount
+        - active
+        - createdAt
+        - updatedAt
+
+    CreateFaqBody:
+      type: object
+      properties:
+        question:
+          type: string
+        answer:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+          default: true
+      required:
+        - question
+        - answer
+        - keywords
+
+    UpdateFaqBody:
+      type: object
+      properties:
+        question:
+          type: string
+        answer:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        price:
+          type: ["number", "null"]
+        duration:
+          type: ["integer", "null"]
+        category:
+          type: ["string", "null"]
+        active:
+          type: boolean
+        keywords:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - description
+        - price
+        - duration
+        - category
+        - active
+        - keywords
+        - createdAt
+        - updatedAt
+
+    CreateServiceBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        duration:
+          type: integer
+        category:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+          default: true
+      required:
+        - name
+
+    UpdateServiceBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        duration:
+          type: integer
+        category:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        customerPhone:
+          type: ["string", "null"]
+        customerName:
+          type: ["string", "null"]
+        service:
+          type: ["string", "null"]
+        requestedDate:
+          type: ["string", "null"]
+        requestedTime:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, approved, rejected, completed]
+        rating:
+          type: ["integer", "null"]
+        ratingAskedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - customerId
+        - customerPhone
+        - customerName
+        - service
+        - requestedDate
+        - requestedTime
+        - notes
+        - status
+        - rating
+        - ratingAskedAt
+        - createdAt
+        - updatedAt
+
+    CreateBookingBody:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        service:
+          type: string
+        requestedDate:
+          type: string
+        requestedTime:
+          type: string
+        notes:
+          type: string
+      required:
+        - customerId
+
+    UpdateBookingBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, approved, rejected, completed]
+        notes:
+          type: string
+
+    BookingListResponse:
+      type: object
+      properties:
+        bookings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - bookings
+        - total
+        - page
+        - limit
+
+    DashboardStats:
+      type: object
+      properties:
+        totalMessages:
+          type: integer
+        messagesFromFaq:
+          type: integer
+        messagesFromService:
+          type: integer
+        messagesFromBooking:
+          type: integer
+        messagesFromAi:
+          type: integer
+        totalCustomers:
+          type: integer
+        pendingBookings:
+          type: integer
+        completedBookings:
+          type: integer
+        avgRating:
+          type: ["number", "null"]
+        totalAiCost:
+          type: number
+        totalAiTokens:
+          type: integer
+        faqSavingsPercent:
+          type: number
+        todayMessages:
+          type: integer
+      required:
+        - totalMessages
+        - messagesFromFaq
+        - messagesFromService
+        - messagesFromBooking
+        - messagesFromAi
+        - totalCustomers
+        - pendingBookings
+        - completedBookings
+        - avgRating
+        - totalAiCost
+        - totalAiTokens
+        - faqSavingsPercent
+        - todayMessages
+
+    BusinessSettings:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessName:
+          type: string
+        businessType:
+          type: string
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        address:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        openingHours:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        currency:
+          type: string
+        customAiPrompt:
+          type: ["string", "null"]
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - businessName
+        - businessType
+        - phone
+        - email
+        - address
+        - website
+        - openingHours
+        - description
+        - currency
+        - customAiPrompt
+        - updatedAt
+
+    UpdateSettingsBody:
+      type: object
+      properties:
+        businessName:
+          type: string
+        businessType:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+        website:
+          type: string
+        openingHours:
+          type: string
+        description:
+          type: string
+        currency:
+          type: string
+        customAiPrompt:
+          type: string
+
+    SimulateMessageBody:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    SimulateMessageResponse:
+      type: object
+      required: [replyType, response]
+      properties:
+        replyType:
+          type: string
+          enum: [faq, service, booking, ai, none, rating]
+        response:
+          type: string
+        matchedFaqId:
+          type: ["integer", "null"]
+        matchedFaqQuestion:
+          type: ["string", "null"]
+        matchedServiceId:
+          type: ["integer", "null"]
+        matchedServiceName:
+          type: ["string", "null"]
+        aiTokensUsed:
+          type: ["integer", "null"]
+
+    AiUsageLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: ["integer", "null"]
+        customerPhone:
+          type: ["string", "null"]
+        prompt:
+          type: string
+        response:
+          type: string
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        estimatedCost:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - customerId
+        - customerPhone
+        - prompt
+        - response
+        - promptTokens
+        - completionTokens
+        - totalTokens
+        - estimatedCost
+        - createdAt
+
+    AiUsageListResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiUsageLog"
+        total:
+          type: integer
+        totalCost:
+          type: number
+        totalTokens:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - logs
+        - total
+        - totalCost
+        - totalTokens
+        - page
+        - limit

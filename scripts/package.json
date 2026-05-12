@@ -1,0 +1,28 @@
+{
+  "name": "@workspace/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "hello": "tsx ./src/hello.ts",
+    "seed": "tsx ./src/seed.ts",
+    "seed:salon": "cross-env BUSINESS_TYPE=salon tsx ./src/seed.ts",
+    "seed:clinic": "cross-env BUSINESS_TYPE=clinic tsx ./src/seed.ts",
+    "seed:gym": "cross-env BUSINESS_TYPE=gym tsx ./src/seed.ts",
+    "seed:restaurant": "cross-env BUSINESS_TYPE=restaurant tsx ./src/seed.ts",
+    "seed:coaching": "cross-env BUSINESS_TYPE=coaching tsx ./src/seed.ts",
+    "seed:unread:coaching": "tsx ./src/seed-unread-coaching.ts",
+    "seed:customers-bookings": "tsx ./src/seed-customers-bookings.ts",
+    "seed:sample": "tsx ./src/seed-sample.ts",
+    "typecheck": "tsc --build tsconfig.json"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "cross-env": "^7.0.3",
+    "tsx": "catalog:"
+  }
+}
