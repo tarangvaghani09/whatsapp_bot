@@ -276,7 +276,7 @@ export default function ServicesPage() {
             </DialogHeader>
           </div>
 
-          <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+          <div className="sidebar-scroll px-4 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
             {formError && (
               <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
