@@ -215,7 +215,7 @@ export default function BookingsPage() {
     },
     complete: {
       title: "Mark this booking as complete?",
-      description: "The booking will be marked as completed and a WhatsApp message will be sent to the customer asking them to rate their experience (1–5 stars).",
+      description: "The booking will be marked as completed and a WhatsApp message will be sent to the customer asking them to rate their experience (1-5 stars).",
       actionLabel: "Complete & Request Rating",
       actionClass: "bg-violet-600 hover:bg-violet-700 text-white",
     },
@@ -238,7 +238,7 @@ export default function BookingsPage() {
         </div>
       </div>
 
-      {/* ── Status Tabs + Select All ── */}
+      {/* -- Status Tabs + Select All -- */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl w-full sm:w-fit overflow-x-auto">
           {STATUS_TABS.map((tab) => {
@@ -380,7 +380,7 @@ export default function BookingsPage() {
 
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <p className="text-xs text-gray-400">
-                      {format(new Date(b.createdAt), "MMM d, yyyy · h:mm a")}
+                      {format(new Date(b.createdAt), "MMM d, yyyy ? h:mm a")}
                     </p>
                     <div className="flex items-center gap-2 flex-wrap">
                       {!isCompleted && (
@@ -424,7 +424,7 @@ export default function BookingsPage() {
         </div>
       )}
 
-      {/* ── Bulk Action Bar ── */}
+      {/* -- Bulk Action Bar -- */}
       {selectedPendingIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100vw-2rem)] max-w-xl">
           <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gray-900 shadow-2xl shadow-black/30 border border-white/10">
@@ -469,7 +469,7 @@ export default function BookingsPage() {
         </div>
       )}
 
-      {/* ── Reschedule Dialog ── */}
+      {/* -- Reschedule Dialog -- */}
       <Dialog open={reschedule.open} onOpenChange={(o) => { if (!o && !rescheduling) setReschedule((r) => ({ ...r, open: false })); }}>
         <DialogContent className="p-0 overflow-hidden sm:max-w-sm sm:rounded-2xl flex flex-col">
           <div className="px-5 py-4 flex-shrink-0 bg-gradient-to-r from-blue-500 to-indigo-600">
@@ -532,7 +532,7 @@ export default function BookingsPage() {
               <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-200 rounded-2xl" />
               <span className="relative flex items-center gap-2">
                 {rescheduling ? (
-                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving…</>
+                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
                 ) : (
                   <><CalendarClock className="w-4 h-4" /> Reschedule & Notify</>
                 )}
@@ -542,9 +542,9 @@ export default function BookingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Single Booking Confirm ── */}
+      {/* -- Single Booking Confirm -- */}
       <AlertDialog open={confirm.open} onOpenChange={(o) => !o && setConfirm({ open: false })}>
-        <AlertDialogContent className="max-w-sm mx-4 sm:mx-auto rounded-2xl">
+        <AlertDialogContent className="max-w-sm rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base font-semibold">
               {cfg?.title}
@@ -570,9 +570,9 @@ export default function BookingsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Bulk Confirm ── */}
+      {/* -- Bulk Confirm -- */}
       <AlertDialog open={bulkConfirm.open} onOpenChange={(o) => !o && setBulkConfirm({ open: false })}>
-        <AlertDialogContent className="max-w-sm mx-4 sm:mx-auto rounded-2xl">
+        <AlertDialogContent className="max-w-sm rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base font-semibold">
               {bulkConfirm.open

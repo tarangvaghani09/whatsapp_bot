@@ -113,7 +113,7 @@ export default function FaqsPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">FAQs</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Answers matched first — no AI cost</p>
+          <p className="text-sm text-gray-500 mt-0.5">Answers matched first - no AI cost</p>
         </div>
         <button
           onClick={openCreate}
@@ -132,7 +132,7 @@ export default function FaqsPage() {
       <div className="relative group">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors" />
         <Input
-          placeholder="Search FAQs…"
+          placeholder="Search FAQs..."
           className="pl-10 h-11 rounded-xl"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -203,7 +203,7 @@ export default function FaqsPage() {
       )}
 
       <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({ open: false })}>
-        <AlertDialogContent className="max-w-sm mx-4 sm:mx-auto rounded-2xl">
+        <AlertDialogContent className="max-w-sm rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base font-semibold">Delete this FAQ?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-gray-500">
@@ -277,7 +277,7 @@ export default function FaqsPage() {
                   <Textarea
                     className="mt-1.5 resize-none focus-visible:ring-blue-500 focus-visible:border-blue-500"
                     rows={3}
-                    placeholder="e.g. We are open Mon–Sat, 9am–8pm and Sunday 10am–6pm."
+                    placeholder="e.g. We are open Mon-Sat, 9am-8pm and Sunday 10am-6pm."
                     value={dialog.form.answer}
                     onChange={(e) => setField("answer", e.target.value)}
                   />
@@ -340,7 +340,7 @@ export default function FaqsPage() {
               {saving ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Saving…
+                  Saving...
                 </>
               ) : isEditing ? (
                 <><Pencil className="w-4 h-4" /> Update FAQ</>

@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { db, adminUsersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const JWT_COOKIE = "wa_admin_token";
 const JWT_ISSUER = "whatsapp-bot-admin";
@@ -9,11 +11,13 @@ const JWT_EXPIRES_IN = "7d";
 type JwtPayload = {
   sub: string;
   email: string;
+  role?: "super_admin" | "business_admin";
 };
 
 export type AuthUser = {
   id: number;
   email: string;
+  role: "super_admin" | "business_admin";
 };
 
 declare module "express-serve-static-core" {
@@ -39,7 +43,7 @@ function parseBearerToken(headerValue?: string): string | null {
 
 export function signAuthToken(user: AuthUser): string {
   return jwt.sign(
-    { email: user.email },
+    { email: user.email, role: user.role },
     getJwtSecret(),
     {
       subject: String(user.id),
@@ -64,7 +68,7 @@ export function clearAuthCookie(res: Response) {
   res.clearCookie(JWT_COOKIE, { path: "/" });
 }
 
-export function ensureAuth(req: Request, res: Response, next: NextFunction) {
+export async function ensureAuth(req: Request, res: Response, next: NextFunction) {
   const cookieToken = (req.cookies?.[JWT_COOKIE] as string | undefined) ?? null;
   const bearerToken = parseBearerToken(req.headers.authorization);
   const token = bearerToken ?? cookieToken;
@@ -86,7 +90,18 @@ export function ensureAuth(req: Request, res: Response, next: NextFunction) {
       return;
     }
 
-    req.authUser = { id, email: payload.email };
+    const [user] = await db
+      .select({ id: adminUsersTable.id, isActive: adminUsersTable.isActive, role: adminUsersTable.role })
+      .from(adminUsersTable)
+      .where(eq(adminUsersTable.id, id))
+      .limit(1);
+    if (!user || !user.isActive) {
+      clearAuthCookie(res);
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    req.authUser = { id, email: payload.email, role: user.role === "business_admin" ? "business_admin" : "super_admin" };
     next();
   } catch {
     res.status(401).json({ error: "Unauthorized" });

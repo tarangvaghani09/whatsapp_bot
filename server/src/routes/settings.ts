@@ -36,14 +36,14 @@ async function getOrCreateSettings(businessId: number) {
 
 router.get("/settings", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
   const settings = await getOrCreateSettings(businessId);
   res.json(GetSettingsResponse.parse(settings));
 });
 
 router.put("/settings", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) {

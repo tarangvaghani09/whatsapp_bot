@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useListBusinesses, useCreateBusiness, useUpdateBusiness, useDeleteBusiness } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Building2, Phone, Key, X, AlertCircle, Check, Sparkles, Dumbbell, Utensils, HeartPulse, GraduationCap, Scissors } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Phone, Key, X, AlertCircle, Check, Sparkles, Dumbbell, Utensils, HeartPulse, GraduationCap, Scissors, Shield, ShieldOff, UserCog, Mail, CirclePower } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessContext } from "@/context/BusinessContext";
 
@@ -33,12 +33,49 @@ type Form = {
   whatsappAccessToken: string;
   verifyToken: string;
 };
+type OwnerForm = {
+  email: string;
+  password: string;
+  name: string;
+  businessIds: number[];
+};
+type OwnerItem = {
+  id: number;
+  email: string;
+  name: string | null;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  businesses: Array<{ id: number; name: string }>;
+};
+type EditOwnerForm = {
+  id: number;
+  email: string;
+  name: string;
+  password: string;
+  businessIds: number[];
+  isActive: boolean;
+};
 
 const EMPTY: Form = {
   name: "",
   whatsappPhoneNumberId: "",
   whatsappAccessToken: "",
   verifyToken: "",
+};
+const EMPTY_OWNER: OwnerForm = {
+  email: "",
+  password: "",
+  name: "",
+  businessIds: [],
+};
+const EMPTY_EDIT_OWNER: EditOwnerForm = {
+  id: 0,
+  email: "",
+  name: "",
+  password: "",
+  businessIds: [],
+  isActive: true,
 };
 
 export default function BusinessesPage() {
@@ -52,17 +89,62 @@ export default function BusinessesPage() {
   const deleteBusiness = useDeleteBusiness();
 
   const [dialog, setDialog] = useState<{ open: boolean; id?: number; form: Form }>({ open: false, form: EMPTY });
+  const [ownerDialog, setOwnerDialog] = useState<{ open: boolean; form: OwnerForm }>({ open: false, form: EMPTY_OWNER });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [ownerError, setOwnerError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id?: number; name?: string }>({ open: false });
   const [seedDialog, setSeedDialog] = useState(false);
   const [seedType, setSeedType] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [owners, setOwners] = useState<OwnerItem[]>([]);
+  const [ownersLoading, setOwnersLoading] = useState(false);
+  const [ownersError, setOwnersError] = useState("");
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [editOwnerDialog, setEditOwnerDialog] = useState<{ open: boolean; form: EditOwnerForm }>({
+    open: false,
+    form: EMPTY_EDIT_OWNER,
+  });
+  const [editOwnerError, setEditOwnerError] = useState("");
+  const [ownerDeleteConfirm, setOwnerDeleteConfirm] = useState<{ open: boolean; id?: number; name?: string }>({ open: false });
+  const [statusConfirm, setStatusConfirm] = useState<{ open: boolean; owner?: OwnerItem; token: string }>({ open: false, token: "" });
+  const [deleteToken, setDeleteToken] = useState("");
+  const [showAdminUsers, setShowAdminUsers] = useState(false);
+  const showAdminUsersInsideBusinesses = false;
 
   const invalidate = async () => {
     await qc.invalidateQueries({ queryKey: ["/api/businesses"] });
     await refetchContext();
   };
+
+  async function loadOwners() {
+    setOwnersLoading(true);
+    setOwnersError("");
+    try {
+      const res = await fetch("/api/business-owners");
+      if (!res.ok) {
+        if (res.status === 403) return;
+        const body = await res.json().catch(() => ({}));
+        setOwnersError(body?.error || "Failed to load admin users.");
+        return;
+      }
+      const data = await res.json();
+      setOwners(Array.isArray(data) ? data : []);
+    } finally {
+      setOwnersLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const superAdmin = data?.user?.role === "super_admin";
+        setIsSuperAdmin(superAdmin);
+        if (superAdmin) void loadOwners();
+      })
+      .catch(() => setIsSuperAdmin(false));
+  }, []);
 
   async function handleSeed() {
     if (!seedType || !businessId) return;
@@ -107,6 +189,22 @@ export default function BusinessesPage() {
     if (formError) setFormError("");
     setDialog((d) => ({ ...d, form: { ...d.form, [key]: val } }));
   }
+  function setOwnerField<K extends keyof OwnerForm>(key: K, val: OwnerForm[K]) {
+    if (ownerError) setOwnerError("");
+    setOwnerDialog((d) => ({ ...d, form: { ...d.form, [key]: val } }));
+  }
+  function toggleOwnerBusiness(id: number) {
+    setOwnerDialog((d) => {
+      const has = d.form.businessIds.includes(id);
+      return {
+        ...d,
+        form: {
+          ...d.form,
+          businessIds: has ? d.form.businessIds.filter((x) => x !== id) : [...d.form.businessIds, id],
+        },
+      };
+    });
+  }
 
   async function handleSave() {
     const { name, whatsappPhoneNumberId, whatsappAccessToken, verifyToken } = dialog.form;
@@ -131,6 +229,148 @@ export default function BusinessesPage() {
       }
       await invalidate();
       closeDialog();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleOwnerSave() {
+    const { email, password, name, businessIds } = ownerDialog.form;
+    if (!email.trim()) { setOwnerError("Owner email is required."); return; }
+    if (!name.trim()) { setOwnerError("Owner name is required."); return; }
+    if (password.trim().length < 6) { setOwnerError("Password must be at least 6 characters."); return; }
+    if (businessIds.length === 0) { setOwnerError("Select at least one business."); return; }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/business-owners", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password: password.trim(),
+          name: name.trim(),
+          businessIds,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setOwnerError(body?.error || "Failed to create business owner.");
+        return;
+      }
+      toast({ title: "Business owner created", description: "Permissions granted to selected businesses.", variant: "success" });
+      setOwnerDialog({ open: false, form: EMPTY_OWNER });
+      await loadOwners();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openEditOwner(owner: OwnerItem) {
+    setEditOwnerError("");
+    setEditOwnerDialog({
+      open: true,
+      form: {
+        id: owner.id,
+        email: owner.email,
+        name: owner.name ?? "",
+        password: "",
+        businessIds: owner.businesses.map((b) => b.id),
+        isActive: owner.isActive,
+      },
+    });
+  }
+  function toggleEditOwnerBusiness(id: number) {
+    setEditOwnerDialog((d) => {
+      const has = d.form.businessIds.includes(id);
+      return {
+        ...d,
+        form: {
+          ...d.form,
+          businessIds: has ? d.form.businessIds.filter((x) => x !== id) : [...d.form.businessIds, id],
+        },
+      };
+    });
+  }
+
+  function setEditOwnerField<K extends keyof EditOwnerForm>(key: K, val: EditOwnerForm[K]) {
+    if (editOwnerError) setEditOwnerError("");
+    setEditOwnerDialog((d) => ({ ...d, form: { ...d.form, [key]: val } }));
+  }
+
+  async function saveOwnerEdit() {
+    const f = editOwnerDialog.form;
+    if (!f.email.trim()) { setEditOwnerError("Email is required."); return; }
+    if (!f.name.trim()) { setEditOwnerError("Name is required."); return; }
+    if (f.businessIds.length === 0) { setEditOwnerError("Select at least one business."); return; }
+    if (f.password.trim() && f.password.trim().length < 6) { setEditOwnerError("Password must be at least 6 characters."); return; }
+
+    setSaving(true);
+    try {
+      const payload = {
+        email: f.email.trim().toLowerCase(),
+        name: f.name.trim(),
+        ...(f.password.trim() ? { password: f.password.trim() } : {}),
+        businessIds: f.businessIds,
+        isActive: f.isActive,
+      };
+      const res = await fetch(`/api/business-owners/${f.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setEditOwnerError(body?.error || "Failed to update admin user.");
+        return;
+      }
+      toast({ title: "Admin user updated", variant: "success" });
+      setEditOwnerDialog({ open: false, form: EMPTY_EDIT_OWNER });
+      await loadOwners();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleOwnerStatus(owner: OwnerItem) {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/business-owners/${owner.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: owner.email,
+          name: owner.name ?? owner.email,
+          businessIds: owner.businesses.map((b) => b.id),
+          isActive: !owner.isActive,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast({ title: body?.error || "Failed to update user status", variant: "destructive" });
+        return;
+      }
+      toast({ title: owner.isActive ? "Admin disabled" : "Admin enabled", variant: "success" });
+      await loadOwners();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteOwner() {
+    if (!ownerDeleteConfirm.id) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/business-owners/${ownerDeleteConfirm.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast({ title: body?.error || "Failed to delete admin user", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Admin user deleted", variant: "success" });
+      setOwnerDeleteConfirm({ open: false });
+      setDeleteToken("");
+      await loadOwners();
     } finally {
       setSaving(false);
     }
@@ -244,8 +484,106 @@ export default function BusinessesPage() {
         </div>
       )}
 
+      {isSuperAdmin && showAdminUsersInsideBusinesses && (
+        <div className="pt-2">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div>
+            <h2 className="text-xl font-bold text-gray-900">Admin Users</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Manage owner email, password, business assignment, and account status</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setOwnerDialog({ open: true, form: EMPTY_OWNER })}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white text-sm font-semibold shadow-md hover:from-sky-600 hover:to-cyan-700"
+              >
+                <Key className="w-4 h-4" /> Add Admin User
+              </button>
+              <button
+                onClick={() => {
+                  const next = !showAdminUsers;
+                  setShowAdminUsers(next);
+                  if (next) void loadOwners();
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white text-sm font-semibold shadow-md hover:from-sky-600 hover:to-cyan-700"
+              >
+                <UserCog className="w-4 h-4" /> {showAdminUsers ? "Hide Admin Users" : "Manage Admin Users"}
+              </button>
+            </div>
+          </div>
+          {showAdminUsers && ownersError && (
+            <div className="mb-3 flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+              <p className="text-sm font-medium leading-snug">{ownersError}</p>
+            </div>
+          )}
+          {showAdminUsers ? (ownersLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-xl bg-gray-200 animate-pulse" />
+              ))}
+            </div>
+          ) : owners.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center text-gray-500 text-sm">
+              No admin users yet. Click <span className="font-semibold">Add Admin User</span> to create one.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {owners.map((owner) => (
+                <Card key={owner.id} className={`border shadow-sm ${owner.isActive ? "border-sky-200 bg-sky-50/20" : "border-gray-200 bg-gray-50/70"}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <UserCog className={`w-4 h-4 ${owner.isActive ? "text-sky-600" : "text-gray-500"}`} />
+                          <p className="font-semibold text-gray-900">{owner.name || owner.email}</p>
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${owner.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-700"}`}>
+                            {owner.isActive ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
+                            {owner.isActive ? "Active" : "Disabled"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
+                          <Mail className="w-3.5 h-3.5" /> {owner.email}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Business: <span className="font-medium text-gray-700">{owner.businesses.map((b) => b.name).join(", ") || "No business assigned"}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                          onClick={() => openEditOwner(owner)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="p-2 rounded-lg hover:bg-amber-50 hover:text-amber-600 text-gray-400 transition-colors"
+                          onClick={() => setStatusConfirm({ open: true, owner, token: "" })}
+                          disabled={saving}
+                        >
+                          <CirclePower className="w-4 h-4" />
+                        </button>
+                        <button
+                          className="p-2 rounded-lg hover:bg-red-50 hover:text-red-500 text-gray-400 transition-colors"
+                          onClick={() => setOwnerDeleteConfirm({ open: true, id: owner.id, name: owner.name ?? owner.email })}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )) : (
+            <div className="rounded-xl border border-dashed border-sky-300 bg-sky-50/40 p-6 text-center text-sky-700 text-sm">
+              Click <span className="font-semibold">Manage Admin Users</span> to view and manage owner accounts.
+            </div>
+          )}
+        </div>
+      )}
+
       <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({ open: false })}>
-        <AlertDialogContent className="max-w-sm mx-4 sm:mx-auto rounded-2xl">
+        <AlertDialogContent className="max-w-sm rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base font-semibold">Delete this business?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-gray-500">
@@ -267,7 +605,80 @@ export default function BusinessesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Quick Setup / Seed Dialog ── */}
+      <AlertDialog open={ownerDeleteConfirm.open} onOpenChange={(o) => { if (!o) { setOwnerDeleteConfirm({ open: false }); setDeleteToken(""); } }}>
+        <AlertDialogContent className="max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-semibold">Delete this admin user?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500">
+              {ownerDeleteConfirm.name && (
+                <span className="block font-medium text-gray-700 mb-1">"{ownerDeleteConfirm.name}"</span>
+              )}
+              This removes login access and all business permissions for this user.
+            </AlertDialogDescription>
+            <div className="pt-2">
+              <Label className="text-sm font-medium text-gray-700">Type DELETE to confirm</Label>
+              <Input
+                className="mt-1.5"
+                value={deleteToken}
+                onChange={(e) => setDeleteToken(e.target.value)}
+                placeholder="DELETE"
+              />
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-gray-200 text-sm font-medium">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold"
+              onClick={() => void deleteOwner()}
+              disabled={deleteToken.trim() !== "DELETE" || saving}
+            >
+              Delete Admin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={statusConfirm.open} onOpenChange={(o) => !o && setStatusConfirm({ open: false, token: "" })}>
+        <AlertDialogContent className="max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-semibold">
+              {statusConfirm.owner?.isActive ? "Disable this admin user?" : "Enable this admin user?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500">
+              {statusConfirm.owner?.isActive
+                ? "This user will not be able to login until enabled again."
+                : "This user will be able to login again."}
+            </AlertDialogDescription>
+            {statusConfirm.owner?.isActive && (
+              <div className="pt-2">
+                <Label className="text-sm font-medium text-gray-700">Type DISABLE to confirm</Label>
+                <Input
+                  className="mt-1.5"
+                  value={statusConfirm.token}
+                  onChange={(e) => setStatusConfirm((s) => ({ ...s, token: e.target.value }))}
+                  placeholder="DISABLE"
+                />
+              </div>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-gray-200 text-sm font-medium">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold"
+              onClick={() => {
+                if (!statusConfirm.owner) return;
+                void toggleOwnerStatus(statusConfirm.owner);
+                setStatusConfirm({ open: false, token: "" });
+              }}
+              disabled={(statusConfirm.owner?.isActive && statusConfirm.token.trim() !== "DISABLE") || saving}
+            >
+              {statusConfirm.owner?.isActive ? "Disable User" : "Enable User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* -- Quick Setup / Seed Dialog -- */}
       <Dialog open={seedDialog} onOpenChange={(o) => { if (!o && !seeding) { setSeedDialog(false); setSeedType(null); } }}>
         <DialogContent className="p-0 overflow-hidden sm:max-w-lg sm:rounded-2xl flex flex-col max-h-[92dvh]">
           <div className="px-5 py-4 flex-shrink-0 bg-gradient-to-r from-violet-500 to-purple-600">
@@ -285,7 +696,7 @@ export default function BusinessesPage() {
           </div>
 
           <div className="px-4 py-4 space-y-3 overflow-y-auto flex-1 min-h-0">
-            <p className="text-sm text-gray-500">Select your business type and we'll add 8 FAQs and 8–10 services tailored for you. You can edit or delete them after.</p>
+            <p className="text-sm text-gray-500">Select your business type and we'll add 8 FAQs and 8-10 services tailored for you. You can edit or delete them after.</p>
             <div className="grid grid-cols-1 gap-2">
               {BUSINESS_TYPES.map((bt) => {
                 const Icon = bt.icon;
@@ -328,7 +739,7 @@ export default function BusinessesPage() {
               className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white shadow-lg bg-gradient-to-br from-violet-500 to-purple-600 shadow-purple-200 hover:from-violet-600 hover:to-purple-700 active:scale-[0.97] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {seeding ? (
-                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Setting up…</>
+                <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Setting up...</>
               ) : (
                 <><Sparkles className="w-4 h-4" /> Apply Setup</>
               )}
@@ -338,7 +749,7 @@ export default function BusinessesPage() {
       </Dialog>
 
       <Dialog open={dialog.open} onOpenChange={(o) => !o && closeDialog()}>
-        <DialogContent className="p-0 overflow-hidden sm:max-w-md sm:rounded-2xl flex flex-col max-h-[92dvh]">
+        <DialogContent className="p-0 overflow-hidden sm:max-w-md sm:rounded-2xl flex flex-col max-h-[92dvh] [&>button]:text-white [&>button]:opacity-100 [&>button:hover]:opacity-90">
           <div className={`px-5 py-4 flex-shrink-0 ${isEditing ? "bg-gradient-to-r from-blue-500 to-blue-600" : "bg-gradient-to-r from-green-500 to-emerald-600"}`}>
             <DialogHeader>
               <div className="flex items-center gap-3">
@@ -385,7 +796,7 @@ export default function BusinessesPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
                   <Phone className="w-3.5 h-3.5" /> WhatsApp Credentials
                 </p>
-                <p className="text-xs text-gray-400">From your Meta Developer Portal → WhatsApp → API Setup</p>
+                <p className="text-xs text-gray-400">From your Meta Developer Portal {"->"} WhatsApp {"->"} API Setup</p>
 
                 <div>
                   <Label className="text-sm font-medium text-gray-700">Phone Number ID</Label>
@@ -421,6 +832,7 @@ export default function BusinessesPage() {
                   <p className="text-xs text-gray-400 mt-1">Used to verify the Meta webhook subscription</p>
                 </div>
               </div>
+
             </div>
           </div>
 
@@ -443,13 +855,172 @@ export default function BusinessesPage() {
               {saving ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Saving…
+                  Saving...
                 </>
               ) : isEditing ? (
                 <><Pencil className="w-4 h-4" /> Update Business</>
               ) : (
                 <><Plus className="w-4 h-4" /> Create Business</>
               )}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={ownerDialog.open} onOpenChange={(o) => !o && setOwnerDialog({ open: false, form: EMPTY_OWNER })}>
+        <DialogContent className="p-0 overflow-hidden sm:max-w-md sm:rounded-2xl flex flex-col max-h-[92dvh]">
+          <div className="px-5 py-4 flex-shrink-0 bg-gradient-to-r from-sky-500 to-cyan-600">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <Key className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-white">New Admin User</DialogTitle>
+                  <p className="text-xs text-white/75 mt-0.5">Create owner account and assign business access</p>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+
+          <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+            {ownerError && (
+              <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+                <p className="text-sm font-medium leading-snug">{ownerError}</p>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Owner Name</Label>
+              <Input className="mt-1.5 focus-visible:ring-sky-500 focus-visible:border-sky-500" value={ownerDialog.form.name} onChange={(e) => setOwnerField("name", e.target.value)} placeholder="e.g. Fitness Owner" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Owner Email</Label>
+              <Input className="mt-1.5 focus-visible:ring-sky-500 focus-visible:border-sky-500" value={ownerDialog.form.email} onChange={(e) => setOwnerField("email", e.target.value)} placeholder="owner@business.com" />
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Password</Label>
+              <Input type="password" className="mt-1.5 focus-visible:ring-sky-500 focus-visible:border-sky-500" value={ownerDialog.form.password} onChange={(e) => setOwnerField("password", e.target.value)} placeholder="Minimum 6 characters" />
+            </div>
+
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Select Businesses</Label>
+              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                {businesses.map((b) => (
+                  <label key={b.id} className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 cursor-pointer"
+                      checked={ownerDialog.form.businessIds.includes(b.id)}
+                      onChange={() => toggleOwnerBusiness(b.id)}
+                    />
+                    <span>{b.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-2 flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <button
+              onClick={() => setOwnerDialog({ open: false, form: EMPTY_OWNER })}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 font-medium text-sm hover:bg-gray-50"
+            >
+              <X className="w-4 h-4" /> Cancel
+            </button>
+            <button
+              onClick={handleOwnerSave}
+              disabled={saving}
+              className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white shadow-lg bg-gradient-to-br from-sky-500 to-cyan-600 hover:from-sky-600 hover:to-cyan-700 disabled:opacity-60"
+            >
+              <Key className="w-4 h-4" /> Create Admin
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOwnerDialog.open} onOpenChange={(o) => !o && setEditOwnerDialog({ open: false, form: EMPTY_EDIT_OWNER })}>
+        <DialogContent className="p-0 overflow-hidden sm:max-w-md sm:rounded-2xl flex flex-col max-h-[92dvh]">
+          <div className="px-5 py-4 flex-shrink-0 bg-gradient-to-r from-blue-500 to-indigo-600">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <UserCog className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-white">Edit Admin User</DialogTitle>
+                  <p className="text-xs text-white/75 mt-0.5">Update email, password, business access and status</p>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+
+          <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+            {editOwnerError && (
+              <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+                <p className="text-sm font-medium leading-snug">{editOwnerError}</p>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Owner Name</Label>
+              <Input className="mt-1.5 focus-visible:ring-blue-500 focus-visible:border-blue-500" value={editOwnerDialog.form.name} onChange={(e) => setEditOwnerField("name", e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Owner Email</Label>
+              <Input className="mt-1.5 focus-visible:ring-blue-500 focus-visible:border-blue-500" value={editOwnerDialog.form.email} onChange={(e) => setEditOwnerField("email", e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-sm font-medium text-gray-700">New Password (optional)</Label>
+              <Input type="password" className="mt-1.5 focus-visible:ring-blue-500 focus-visible:border-blue-500" value={editOwnerDialog.form.password} onChange={(e) => setEditOwnerField("password", e.target.value)} placeholder="Leave blank to keep current password" />
+            </div>
+
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Select Businesses</Label>
+              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                {businesses.map((b) => (
+                  <label key={b.id} className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 cursor-pointer"
+                      checked={editOwnerDialog.form.businessIds.includes(b.id)}
+                      onChange={() => toggleEditOwnerBusiness(b.id)}
+                    />
+                    <span>{b.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <label className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 cursor-pointer">
+              <span className="text-sm font-medium text-gray-700">Account Status</span>
+              <span className={`inline-flex items-center gap-2 text-xs font-semibold px-2.5 py-1 rounded-full ${editOwnerDialog.form.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-700"}`}>
+                {editOwnerDialog.form.isActive ? "Active" : "Disabled"}
+              </span>
+              <input
+                type="checkbox"
+                checked={editOwnerDialog.form.isActive}
+                onChange={(e) => setEditOwnerField("isActive", e.target.checked)}
+                className="ml-3 h-4 w-4 cursor-pointer"
+              />
+            </label>
+          </div>
+
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-2 flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <button
+              onClick={() => setEditOwnerDialog({ open: false, form: EMPTY_EDIT_OWNER })}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 font-medium text-sm hover:bg-gray-50"
+            >
+              <X className="w-4 h-4" /> Cancel
+            </button>
+            <button
+              onClick={() => void saveOwnerEdit()}
+              disabled={saving}
+              className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white shadow-lg bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-60"
+            >
+              <Pencil className="w-4 h-4" /> Save Changes
             </button>
           </div>
         </DialogContent>

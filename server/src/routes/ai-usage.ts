@@ -8,7 +8,7 @@ const router: IRouter = Router();
 
 router.get("/ai-usage", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const query = ListAiUsageQueryParams.safeParse(req.query);
   if (!query.success) {

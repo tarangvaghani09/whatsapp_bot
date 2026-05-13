@@ -519,7 +519,7 @@ function CustomerDetail({ id, phone, name, createdAt, initialTags, open, onClose
           )}
           {showCanned && cannedResponses.length === 0 && (
             <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-200/80 text-center text-xs text-gray-400 py-3">
-              No canned responses yet � add some in <span className="font-medium text-green-600">Canned Responses</span>
+              No canned responses yet - add some in <span className="font-medium text-green-600">Canned Responses</span>
             </div>
           )}
           <div className="px-3 py-2.5 flex items-end gap-2">

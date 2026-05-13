@@ -7,7 +7,7 @@ const router: IRouter = Router();
 
 router.get("/dashboard/stats", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

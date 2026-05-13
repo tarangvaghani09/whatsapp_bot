@@ -8,7 +8,7 @@ const router: IRouter = Router();
 
 router.get("/messages/unread-count", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const sinceRaw = typeof req.query.since === "string" ? req.query.since : null;
   const since = sinceRaw ? new Date(sinceRaw) : null;
@@ -29,7 +29,7 @@ router.get("/messages/unread-count", async (req, res): Promise<void> => {
 
 router.get("/messages", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const query = ListMessagesQueryParams.safeParse(req.query);
   if (!query.success) {

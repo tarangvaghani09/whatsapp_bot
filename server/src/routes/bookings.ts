@@ -17,7 +17,7 @@ const router: IRouter = Router();
 
 router.get("/bookings", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const query = ListBookingsQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -62,12 +62,24 @@ router.get("/bookings", async (req, res): Promise<void> => {
 
 router.post("/bookings", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const parsed = CreateBookingBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  if (parsed.data.customerId != null) {
+    const [customer] = await db
+      .select({ id: customersTable.id })
+      .from(customersTable)
+      .where(and(eq(customersTable.id, parsed.data.customerId), eq(customersTable.businessId, businessId)))
+      .limit(1);
+    if (!customer) {
+      res.status(400).json({ error: "Customer does not belong to this business" });
+      return;
+    }
   }
 
   const [booking] = await db.insert(bookingsTable).values({ ...parsed.data, businessId }).returning();
@@ -76,7 +88,7 @@ router.post("/bookings", async (req, res): Promise<void> => {
 
 router.patch("/bookings/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = UpdateBookingParams.safeParse(req.params);
   if (!params.success) {
@@ -108,7 +120,7 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
   if (parsed.data.status === "approved" && booking.customerId) {
     try {
       const [customer] = await db.select().from(customersTable)
-        .where(eq(customersTable.id, booking.customerId)).limit(1);
+        .where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
       const [business] = await db.select().from(businessesTable)
         .where(eq(businessesTable.id, businessId)).limit(1);
 
@@ -149,7 +161,7 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
   if (parsed.data.status === "rejected" && booking.customerId) {
     try {
       const [customer] = await db.select().from(customersTable)
-        .where(eq(customersTable.id, booking.customerId)).limit(1);
+        .where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
       const [business] = await db.select().from(businessesTable)
         .where(eq(businessesTable.id, businessId)).limit(1);
 
@@ -189,7 +201,7 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
   if (parsed.data.status === "completed" && booking.customerId) {
     try {
       const [customer] = await db.select().from(customersTable)
-        .where(eq(customersTable.id, booking.customerId)).limit(1);
+        .where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
       const [business] = await db.select().from(businessesTable)
         .where(eq(businessesTable.id, businessId)).limit(1);
 
@@ -236,7 +248,7 @@ const RescheduleBody = z.object({
 
 router.post("/bookings/:id/reschedule", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid booking id" }); return; }
@@ -257,7 +269,7 @@ router.post("/bookings/:id/reschedule", async (req, res): Promise<void> => {
 
   try {
     const [customer] = await db.select().from(customersTable)
-      .where(eq(customersTable.id, booking.customerId)).limit(1);
+      .where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
     const [business] = await db.select().from(businessesTable)
       .where(eq(businessesTable.id, businessId)).limit(1);
 
@@ -297,7 +309,7 @@ router.post("/bookings/:id/reschedule", async (req, res): Promise<void> => {
 
 router.delete("/bookings/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = DeleteBookingParams.safeParse(req.params);
   if (!params.success) {

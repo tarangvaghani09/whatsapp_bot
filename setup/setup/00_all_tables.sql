@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS admin_users (
   id                      SERIAL PRIMARY KEY,
   email                   TEXT NOT NULL UNIQUE,
   password_hash           TEXT NOT NULL,
+  role                    TEXT NOT NULL DEFAULT 'super_admin',
+  is_active               BOOLEAN NOT NULL DEFAULT TRUE,
   name                    TEXT,
   reset_token_hash        TEXT,
   reset_token_expires_at  TIMESTAMPTZ,
@@ -20,6 +22,8 @@ CREATE TABLE IF NOT EXISTS admin_users (
 
 -- Ensure old admin_users tables are upgraded with auth-reset columns.
 ALTER TABLE admin_users
+  ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'super_admin',
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN IF NOT EXISTS name TEXT,
   ADD COLUMN IF NOT EXISTS reset_token_hash TEXT,
   ADD COLUMN IF NOT EXISTS reset_token_expires_at TIMESTAMPTZ,
@@ -44,3 +48,13 @@ SET
 -- =========================
 \i ./setup/setup/01_schema.sql
 
+-- =========================
+-- Tenant access mapping
+-- =========================
+CREATE TABLE IF NOT EXISTS user_business_access (
+  id           SERIAL PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+  business_id  INTEGER NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, business_id)
+);

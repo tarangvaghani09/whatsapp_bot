@@ -13,6 +13,7 @@ import {
   X,
   Bot,
   Building2,
+  UserCog,
   ChevronDown,
   Check,
   Plus,
@@ -25,6 +26,7 @@ import { useBusinessContext } from "@/context/BusinessContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useDeliveryFailureCount } from "@/hooks/useDeliveryFailureCount";
+type AdminRole = "super_admin" | "business_admin";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -38,9 +40,10 @@ const navItems = [
   { href: "/test-bot", label: "Test Bot", icon: FlaskConical },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/businesses", label: "Businesses", icon: Building2 },
+  { href: "/admin-users", label: "Admin Users", icon: UserCog },
 ];
 
-function BusinessSelector({ onClose }: { onClose?: () => void }) {
+function BusinessSelector({ onClose, role }: { onClose?: () => void; role: AdminRole }) {
   const { businesses, businessId, setBusinessId, loading, refetch } = useBusinessContext();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -59,6 +62,9 @@ function BusinessSelector({ onClose }: { onClose?: () => void }) {
   }
 
   if (businesses.length === 0) {
+    if (role === "business_admin") {
+      return <div className="px-3 py-2 text-xs text-gray-400">No business access assigned</div>;
+    }
     return (
       <Link
         href="/businesses"
@@ -102,16 +108,19 @@ function BusinessSelector({ onClose }: { onClose?: () => void }) {
               </button>
             ))}
           </div>
-          <div className="border-t border-gray-100 p-1">
-            <Link
-              href="/businesses"
-              onClick={() => { setOpen(false); onClose?.(); }}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-xs text-gray-500 font-medium"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Manage businesses
-            </Link>
-          </div></div>
+          {role === "super_admin" && (
+            <div className="border-t border-gray-100 p-1">
+              <Link
+                href="/businesses"
+                onClick={() => { setOpen(false); onClose?.(); }}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-xs text-gray-500 font-medium"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Manage businesses
+              </Link>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -132,9 +141,21 @@ function UnreadBadge({ count, color = "red" }: { count: number; color?: "red" | 
 export default function Layout({ children, onLogout }: { children: React.ReactNode; onLogout?: () => void }) {
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<AdminRole>("super_admin");
   const { businessId } = useBusinessContext();
   const { count: unreadCount, markRead } = useUnreadMessages(businessId ?? undefined);
   const { count: failureCount, clear: clearFailures } = useDeliveryFailureCount(businessId ?? undefined);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(async (r) => {
+        if (!r.ok) return;
+        const data = await r.json();
+        const nextRole = data?.user?.role === "business_admin" ? "business_admin" : "super_admin";
+        setRole(nextRole);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (location === "/customers") {
@@ -155,8 +176,8 @@ export default function Layout({ children, onLogout }: { children: React.ReactNo
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-200",
-          "lg:relative lg:translate-x-0",
+          "sidebar-scroll fixed inset-y-0 left-0 z-30 w-64 h-screen bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-200 overflow-y-auto overscroll-contain",
+          "lg:static lg:inset-auto lg:h-auto lg:min-h-full lg:self-stretch lg:overflow-visible lg:overscroll-auto lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -172,11 +193,16 @@ export default function Layout({ children, onLogout }: { children: React.ReactNo
         </div>
 
         <div className="pt-3 border-b border-gray-100 pb-1">
-          <BusinessSelector onClose={() => setOpen(false)} />
+          <BusinessSelector onClose={() => setOpen(false)} role={role} />
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map(({ href, label, icon: Icon, badge }) => {
+          {navItems
+            .filter((item) => {
+              if (role !== "business_admin") return true;
+              return item.href !== "/test-bot" && item.href !== "/businesses" && item.href !== "/admin-users";
+            })
+            .map(({ href, label, icon: Icon, badge }) => {
             const active = location === href;
             const badgeCount =
               badge === "unread" ? unreadCount :
@@ -240,7 +266,7 @@ export default function Layout({ children, onLogout }: { children: React.ReactNo
           <span className="font-semibold text-gray-800 text-sm">WhatsApp Bot Admin</span>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 overflow-auto">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 overflow-auto lg:overflow-visible">{children}</main>
       </div>
     </div>
   );

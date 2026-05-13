@@ -7,7 +7,7 @@ const router: IRouter = Router();
 
 router.get("/delivery-failures", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const rows = await db
     .select()
@@ -21,7 +21,7 @@ router.get("/delivery-failures", async (req, res): Promise<void> => {
 
 router.delete("/delivery-failures/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const id = parseInt(req.params.id ?? "", 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -36,7 +36,7 @@ router.delete("/delivery-failures/:id", async (req, res): Promise<void> => {
 
 router.post("/delivery-failures/dismiss-all", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   await db
     .update(deliveryFailuresTable)

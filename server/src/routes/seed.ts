@@ -137,7 +137,7 @@ const SEED_DATA = {
 
 router.post("/seed", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const parsed = SeedBody.safeParse(req.body);
   if (!parsed.success) {

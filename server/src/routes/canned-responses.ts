@@ -15,7 +15,7 @@ const IdParam = z.object({ id: z.coerce.number().int().positive() });
 
 router.get("/canned-responses", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
   const rows = await db.select().from(cannedResponsesTable)
     .where(eq(cannedResponsesTable.businessId, businessId))
     .orderBy(cannedResponsesTable.createdAt);
@@ -24,7 +24,7 @@ router.get("/canned-responses", async (req, res): Promise<void> => {
 
 router.post("/canned-responses", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const parsed = CannedResponseBody.safeParse(req.body);
   if (!parsed.success) {
@@ -40,7 +40,7 @@ router.post("/canned-responses", async (req, res): Promise<void> => {
 
 router.patch("/canned-responses/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = IdParam.safeParse(req.params);
   if (!params.success) {
@@ -68,7 +68,7 @@ router.patch("/canned-responses/:id", async (req, res): Promise<void> => {
 
 router.delete("/canned-responses/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = IdParam.safeParse(req.params);
   if (!params.success) {

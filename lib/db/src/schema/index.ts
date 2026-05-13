@@ -1,5 +1,6 @@
 export * from "./businesses";
 export * from "./admin-users";
+export * from "./user-business-access";
 export * from "./customers";
 export * from "./bot-messages";
 export * from "./faqs";

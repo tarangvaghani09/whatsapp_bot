@@ -11,7 +11,7 @@ const router: IRouter = Router();
 
 router.get("/customers/stats", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -34,7 +34,7 @@ router.get("/customers/stats", async (req, res): Promise<void> => {
 
 router.get("/customers", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const query = ListCustomersQueryParams.safeParse(req.query);
   if (!query.success) {
@@ -94,7 +94,7 @@ const PatchTagsBody = z.object({
 
 router.patch("/customers/:id/tags", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid customer id" }); return; }
@@ -125,7 +125,7 @@ const QuickReplyBody = z.object({
 
 router.post("/customers/:id/reply", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const id = parseInt(req.params.id ?? "", 10);
   if (isNaN(id)) {
@@ -192,7 +192,7 @@ const BroadcastBody = z.object({
 
 router.post("/customers/broadcast", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const parsed = BroadcastBody.safeParse(req.body);
   if (!parsed.success) {
@@ -261,7 +261,7 @@ router.post("/customers/broadcast", async (req, res): Promise<void> => {
 
 router.get("/customers/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = GetCustomerParams.safeParse(req.params);
   if (!params.success) {

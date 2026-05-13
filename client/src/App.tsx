@@ -16,6 +16,7 @@ import TestBotPage from "@/pages/TestBotPage";
 import BusinessesPage from "@/pages/Businesses";
 import CannedResponsesPage from "@/pages/CannedResponses";
 import DeliveryFailuresPage from "@/pages/DeliveryFailures";
+import AdminUsersPage from "@/pages/AdminUsers";
 import { BusinessProvider } from "@/context/BusinessContext";
 import AuthPage from "@/pages/AuthPage";
 
@@ -35,6 +36,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/businesses": "Businesses | WhatsApp Bot Admin",
   "/canned-responses": "Canned Responses | WhatsApp Bot Admin",
   "/delivery-failures": "Delivery Failures | WhatsApp Bot Admin",
+  "/admin-users": "Admin Users | WhatsApp Bot Admin",
   "/login": "Login | WhatsApp Bot Admin",
   "/forgot-password": "Forgot Password | WhatsApp Bot Admin",
   "/reset-password": "Reset Password | WhatsApp Bot Admin",
@@ -51,12 +53,15 @@ function PageTitleManager() {
 
 type RouterProps = {
   authed: boolean;
+  role: "super_admin" | "business_admin";
   setAuthed: (value: boolean) => void;
+  refreshSession: () => Promise<void>;
 };
 
-function Router({ authed, setAuthed }: RouterProps) {
+function Router({ authed, role, setAuthed, refreshSession }: RouterProps) {
   const [location, setLocation] = useLocation();
   const authPath = location === "/login" || location === "/forgot-password" || location === "/reset-password" || location === "/create-admin";
+  const restrictedForBusinessAdmin = location === "/test-bot" || location === "/businesses" || location === "/admin-users";
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -67,14 +72,15 @@ function Router({ authed, setAuthed }: RouterProps) {
   useEffect(() => {
     if (!authed && !authPath) setLocation("/login");
     if (authed && authPath) setLocation("/");
-  }, [authed, authPath, setLocation]);
+    if (authed && role === "business_admin" && restrictedForBusinessAdmin) setLocation("/");
+  }, [authed, authPath, role, restrictedForBusinessAdmin, setLocation]);
 
   if (!authed) {
     if (!authPath) return null;
     return (
       <>
         <PageTitleManager />
-        <AuthPage onAuthed={() => setAuthed(true)} />
+        <AuthPage onAuthed={() => { void refreshSession(); }} />
       </>
     );
   }
@@ -97,6 +103,7 @@ function Router({ authed, setAuthed }: RouterProps) {
           <Route path="/businesses" component={BusinessesPage} />
           <Route path="/canned-responses" component={CannedResponsesPage} />
           <Route path="/delivery-failures" component={DeliveryFailuresPage} />
+          <Route path="/admin-users" component={AdminUsersPage} />
           <Route component={NotFound} />
         </Switch>
       </Layout>
@@ -107,18 +114,30 @@ function Router({ authed, setAuthed }: RouterProps) {
 function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [role, setRole] = useState<"super_admin" | "business_admin">("super_admin");
 
-  useEffect(() => {
-    let mounted = true;
+  async function refreshSession() {
     fetch("/api/auth/me")
-      .then((res) => {
-        if (!mounted) return;
-        setAuthed(res.ok);
+      .then(async (res) => {
+        if (!res.ok) {
+          setAuthed(false);
+          setRole("super_admin");
+          return;
+        }
+        const data = await res.json();
+        setAuthed(true);
+        setRole(data?.user?.role === "business_admin" ? "business_admin" : "super_admin");
       })
       .catch(() => {
         if (!mounted) return;
         setAuthed(false);
-      })
+        setRole("super_admin");
+      });
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    refreshSession()
       .finally(() => {
         if (!mounted) return;
         setAuthChecked(true);
@@ -134,7 +153,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router authed={authed} setAuthed={setAuthed} />
+          <Router authed={authed} role={role} setAuthed={setAuthed} refreshSession={refreshSession} />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

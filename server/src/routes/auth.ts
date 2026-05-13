@@ -41,6 +41,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
+  if (!user.isActive) {
+    res.status(403).json({ error: "This account is disabled. Contact super admin." });
+    return;
+  }
 
   const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
   if (!ok) {
@@ -48,10 +52,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const token = signAuthToken({ id: user.id, email: user.email });
+  const role = user.role === "business_admin" ? "business_admin" : "super_admin";
+  const token = signAuthToken({ id: user.id, email: user.email, role });
   setAuthCookie(res, token);
   res.json({
-    user: { id: user.id, email: user.email, name: user.name },
+    user: { id: user.id, email: user.email, name: user.name, role },
   });
 });
 
@@ -145,17 +150,25 @@ router.get("/auth/me", ensureAuth, async (req, res): Promise<void> => {
       id: adminUsersTable.id,
       email: adminUsersTable.email,
       name: adminUsersTable.name,
+      role: adminUsersTable.role,
+      isActive: adminUsersTable.isActive,
     })
     .from(adminUsersTable)
     .where(eq(adminUsersTable.id, id))
     .limit(1);
 
-  if (!user) {
+  if (!user || !user.isActive) {
+    clearAuthCookie(res);
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  res.json({ user });
+  res.json({
+    user: {
+      ...user,
+      role: user.role === "business_admin" ? "business_admin" : "super_admin",
+    },
+  });
 });
 
 router.post("/auth/logout", (req, res): void => {
@@ -189,17 +202,19 @@ router.post("/auth/bootstrap", async (req, res): Promise<void> => {
     .values({
       email,
       passwordHash,
+      role: "super_admin",
       name: parsed.data.name?.trim() || null,
     })
     .returning({
       id: adminUsersTable.id,
       email: adminUsersTable.email,
       name: adminUsersTable.name,
+      role: adminUsersTable.role,
     });
 
-  const token = signAuthToken({ id: created.id, email: created.email });
+  const token = signAuthToken({ id: created.id, email: created.email, role: "super_admin" });
   setAuthCookie(res, token);
-  res.status(201).json({ user: created });
+  res.status(201).json({ user: { ...created, role: "super_admin" } });
 });
 
 export default router;

@@ -144,7 +144,7 @@ export default function ServicesPage() {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Services</h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-snug">Price/service questions answered from DB — no AI cost</p>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-snug">Price/service questions answered from DB - no AI cost</p>
         </div>
         <button
           onClick={openCreate}
@@ -234,7 +234,7 @@ export default function ServicesPage() {
       )}
 
       <AlertDialog open={deleteConfirm.open} onOpenChange={(o) => !o && setDeleteConfirm({ open: false })}>
-        <AlertDialogContent className="max-w-sm mx-4 sm:mx-auto rounded-2xl">
+        <AlertDialogContent className="max-w-sm rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-base font-semibold">Delete this service?</AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-gray-500">
@@ -376,7 +376,7 @@ export default function ServicesPage() {
                 </div>
                 <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-                  Comma-separated — when a customer mentions these, this service is shown
+                  Comma-separated - when a customer mentions these, this service is shown
                 </p>
               </div>
             </div>
@@ -401,7 +401,7 @@ export default function ServicesPage() {
               {saving ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Saving…
+                  Saving...
                 </>
               ) : isEditing ? (
                 <><Pencil className="w-4 h-4" /> Update Service</>

@@ -14,7 +14,7 @@ const router: IRouter = Router();
 
 router.get("/faqs", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
   const faqs = await db.select().from(faqsTable)
     .where(eq(faqsTable.businessId, businessId))
     .orderBy(faqsTable.createdAt);
@@ -23,7 +23,7 @@ router.get("/faqs", async (req, res): Promise<void> => {
 
 router.post("/faqs", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const parsed = CreateFaqBody.safeParse(req.body);
   if (!parsed.success) {
@@ -37,7 +37,7 @@ router.post("/faqs", async (req, res): Promise<void> => {
 
 router.patch("/faqs/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = UpdateFaqParams.safeParse(req.params);
   if (!params.success) {
@@ -64,7 +64,7 @@ router.patch("/faqs/:id", async (req, res): Promise<void> => {
 
 router.delete("/faqs/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = DeleteFaqParams.safeParse(req.params);
   if (!params.success) {

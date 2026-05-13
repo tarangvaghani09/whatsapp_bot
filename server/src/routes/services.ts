@@ -21,7 +21,7 @@ function coerceService(s: typeof servicesTable.$inferSelect) {
 
 router.get("/services", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
   const services = await db.select().from(servicesTable)
     .where(eq(servicesTable.businessId, businessId))
     .orderBy(servicesTable.createdAt);
@@ -30,7 +30,7 @@ router.get("/services", async (req, res): Promise<void> => {
 
 router.post("/services", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const parsed = CreateServiceBody.safeParse(req.body);
   if (!parsed.success) {
@@ -48,7 +48,7 @@ router.post("/services", async (req, res): Promise<void> => {
 
 router.patch("/services/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = UpdateServiceParams.safeParse(req.params);
   if (!params.success) {
@@ -78,7 +78,7 @@ router.patch("/services/:id", async (req, res): Promise<void> => {
 
 router.delete("/services/:id", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const params = DeleteServiceParams.safeParse(req.params);
   if (!params.success) {

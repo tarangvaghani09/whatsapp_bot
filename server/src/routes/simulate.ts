@@ -28,7 +28,7 @@ async function buildSystemPrompt(businessId: number): Promise<string> {
 
 router.post("/simulate", async (req, res): Promise<void> => {
   const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(q.data?.businessId);
+  const businessId = await resolveBusinessId(req, q.data?.businessId);
 
   const parsed = SimulateMessageBody.safeParse(req.body);
   if (!parsed.success) {
