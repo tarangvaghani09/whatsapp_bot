@@ -93,7 +93,7 @@ function BusinessSelector({ onClose, role }: { onClose?: () => void; role: Admin
 
       {open && (
         <div className="absolute left-3 right-3 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-          <div className="py-1 max-h-48 overflow-y-auto">
+          <div className="sidebar-scroll py-1 max-h-48 overflow-y-auto">
             {businesses.map((b) => (
               <button
                 key={b.id}

@@ -196,7 +196,7 @@ export default function CannedResponsesPage() {
       <Dialog open={dialog.open} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="p-0 overflow-hidden sm:max-w-md sm:rounded-2xl gap-0 [&>button]:text-white/80 [&>button:hover]:text-white [&>button]:top-3.5 [&>button]:right-4">
           {/* Gradient header */}
-          <div className="bg-gradient-to-r from-green-600 to-emerald-500 px-5 py-4 flex items-center gap-3">
+          <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-5 py-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 shadow-inner">
               <MessageSquareText className="w-5 h-5 text-white" />
             </div>

@@ -401,7 +401,7 @@ function CustomerDetail({ id, phone, name, createdAt, initialTags, open, onClose
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent hideClose className="p-0 overflow-hidden sm:max-w-md sm:rounded-2xl flex flex-col max-h-[88vh]">
-        <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-500 flex-shrink-0">
+        <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-600 to-emerald-600 flex-shrink-0">
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
@@ -461,7 +461,7 @@ function CustomerDetail({ id, phone, name, createdAt, initialTags, open, onClose
 
         <div
           ref={scrollAreaRef}
-          className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+          className="sidebar-scroll flex-1 overflow-y-auto px-4 py-4 space-y-3"
           style={{ background: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect width='60' height='60' fill='%23e5ddd5'/%3E%3C/svg%3E\")" }}
         >
           {loadingInitial ? (
