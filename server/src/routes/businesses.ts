@@ -3,6 +3,8 @@ import { db, businessesTable, settingsTable, userBusinessAccessTable, adminUsers
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { logger } from "../lib/logger";
+import { encryptSecret, maskSecret } from "../lib/secrets";
 
 const router: IRouter = Router();
 
@@ -35,6 +37,18 @@ const UpdateBusinessOwnerBody = z.object({
   isActive: z.boolean().optional(),
 });
 
+function toSafeBusiness(b: typeof businessesTable.$inferSelect) {
+  return {
+    id: b.id,
+    name: b.name,
+    whatsappPhoneNumberId: b.whatsappPhoneNumberId,
+    whatsappAccessToken: maskSecret(b.whatsappAccessToken),
+    verifyToken: maskSecret(b.verifyToken),
+    createdAt: b.createdAt,
+    updatedAt: b.updatedAt,
+  };
+}
+
 router.get("/businesses", async (req, res): Promise<void> => {
   const user = req.authUser;
   if (user?.role === "business_admin") {
@@ -52,12 +66,12 @@ router.get("/businesses", async (req, res): Promise<void> => {
       .from(businessesTable)
       .where(inArray(businessesTable.id, ids))
       .orderBy(businessesTable.id);
-    res.json(businesses);
+    res.json(businesses.map(toSafeBusiness));
     return;
   }
 
   const businesses = await db.select().from(businessesTable).orderBy(businessesTable.id);
-  res.json(businesses);
+  res.json(businesses.map(toSafeBusiness));
 });
 
 router.post("/businesses", async (req, res): Promise<void> => {
@@ -71,17 +85,28 @@ router.post("/businesses", async (req, res): Promise<void> => {
     return;
   }
 
-  const businessValues = {
+  let encryptedToken: string | undefined;
+  try {
+    encryptedToken = encryptSecret(parsed.data.whatsappAccessToken?.trim() || undefined);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+    return;
+  }
+
+  const businessValues: Partial<typeof businessesTable.$inferInsert> = {
     name: parsed.data.name,
-    whatsappPhoneNumberId: parsed.data.whatsappPhoneNumberId,
-    whatsappAccessToken: parsed.data.whatsappAccessToken,
-    verifyToken: parsed.data.verifyToken,
+    whatsappPhoneNumberId: parsed.data.whatsappPhoneNumberId?.trim() || undefined,
+    whatsappAccessToken: encryptedToken,
+    verifyToken: parsed.data.verifyToken?.trim() || undefined,
   };
 
   const [business] = await db.insert(businessesTable).values(businessValues).returning();
   await db.insert(settingsTable).values({ businessId: business.id }).onConflictDoNothing();
-
-  res.status(201).json(business);
+  logger.info(
+    { actorId: req.authUser?.id, businessId: business.id, action: "business.create", credsUpdated: !!businessValues.whatsappAccessToken },
+    "Business created",
+  );
+  res.status(201).json(toSafeBusiness(business));
 });
 
 router.post("/business-owners", async (req, res): Promise<void> => {
@@ -145,7 +170,7 @@ router.post("/business-owners", async (req, res): Promise<void> => {
 
     return user;
   });
-
+  logger.info({ actorId: req.authUser?.id, ownerId: created.id, businessIds, action: "owner.create" }, "Business owner created");
   res.status(201).json({ user: created, businessIds });
 });
 
@@ -288,7 +313,18 @@ router.patch("/business-owners/:id", async (req, res): Promise<void> => {
       .limit(1);
     return user;
   });
-
+  logger.info(
+    {
+      actorId: req.authUser?.id,
+      ownerId,
+      action: "owner.update",
+      businessIdsUpdated: parsed.data.businessIds ? [...new Set(parsed.data.businessIds)] : undefined,
+      isActive: parsed.data.isActive,
+      emailUpdated: !!parsed.data.email,
+      passwordUpdated: !!parsed.data.password,
+    },
+    "Business owner updated",
+  );
   res.json(updated);
 });
 
@@ -314,6 +350,7 @@ router.delete("/business-owners/:id", async (req, res): Promise<void> => {
   }
 
   await db.delete(adminUsersTable).where(eq(adminUsersTable.id, ownerId));
+  logger.info({ actorId: req.authUser?.id, ownerId, action: "owner.delete" }, "Business owner deleted");
   res.sendStatus(204);
 });
 
@@ -347,7 +384,7 @@ router.get("/businesses/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(business);
+  res.json(toSafeBusiness(business));
 });
 
 router.patch("/businesses/:id", async (req, res): Promise<void> => {
@@ -367,13 +404,35 @@ router.patch("/businesses/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [business] = await db.update(businessesTable).set(parsed.data).where(eq(businessesTable.id, params.data.id)).returning();
+  const setData: Partial<typeof businessesTable.$inferInsert> = {};
+  if (parsed.data.name !== undefined) setData.name = parsed.data.name;
+  if ("whatsappPhoneNumberId" in parsed.data) setData.whatsappPhoneNumberId = parsed.data.whatsappPhoneNumberId?.trim() || null;
+  if ("verifyToken" in parsed.data) setData.verifyToken = parsed.data.verifyToken?.trim() || null;
+  if ("whatsappAccessToken" in parsed.data) {
+    const raw = parsed.data.whatsappAccessToken?.trim() || "";
+    try {
+      setData.whatsappAccessToken = raw ? encryptSecret(raw) : null;
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
+      return;
+    }
+  }
+
+  const [business] = await db.update(businessesTable).set(setData).where(eq(businessesTable.id, params.data.id)).returning();
   if (!business) {
     res.status(404).json({ error: "Business not found" });
     return;
   }
-
-  res.json(business);
+  logger.info(
+    {
+      actorId: req.authUser?.id,
+      businessId: business.id,
+      action: "business.update",
+      credsUpdated: "whatsappAccessToken" in parsed.data || "whatsappPhoneNumberId" in parsed.data || "verifyToken" in parsed.data,
+    },
+    "Business updated",
+  );
+  res.json(toSafeBusiness(business));
 });
 
 router.delete("/businesses/:id", async (req, res): Promise<void> => {

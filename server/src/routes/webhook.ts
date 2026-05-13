@@ -3,8 +3,8 @@ import { extractMessageFromWebhook } from "../lib/whatsapp";
 import { handleIncomingMessage } from "../lib/bot-handler";
 import { logger } from "../lib/logger";
 import { db, businessesTable } from "@workspace/db";
-import { eq, or } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import crypto from "node:crypto";
 
 const router: IRouter = Router();
 
@@ -40,6 +40,24 @@ router.get("/webhook", async (req, res): Promise<void> => {
 });
 
 router.post("/webhook", async (req, res): Promise<void> => {
+  const appSecret = process.env["WHATSAPP_APP_SECRET"];
+  if (appSecret) {
+    const rawBody = (req as typeof req & { rawBody?: Buffer }).rawBody;
+    const signature = req.header("x-hub-signature-256");
+    if (!rawBody || !signature || !signature.startsWith("sha256=")) {
+      res.sendStatus(403);
+      return;
+    }
+
+    const expected = `sha256=${crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex")}`;
+    const sigBuf = Buffer.from(signature, "utf8");
+    const expBuf = Buffer.from(expected, "utf8");
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      res.sendStatus(403);
+      return;
+    }
+  }
+
   res.sendStatus(200);
 
   const msg = extractMessageFromWebhook(req.body);

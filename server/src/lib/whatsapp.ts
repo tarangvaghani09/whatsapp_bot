@@ -12,8 +12,12 @@ export type SendResult =
   | { ok: false; status: number; errorBody: string };
 
 export async function sendWhatsAppMessage(to: string, message: string, creds?: BusinessCreds): Promise<SendResult> {
-  const phoneNumberId = creds?.phoneNumberId ?? process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const token = creds?.accessToken ?? process.env.WHATSAPP_ACCESS_TOKEN;
+  const allowEnvFallback =
+    process.env["ALLOW_WHATSAPP_ENV_FALLBACK"] === "true" &&
+    process.env["NODE_ENV"] !== "production";
+
+  const phoneNumberId = creds?.phoneNumberId ?? (allowEnvFallback ? process.env.WHATSAPP_PHONE_NUMBER_ID : undefined);
+  const token = creds?.accessToken ?? (allowEnvFallback ? process.env.WHATSAPP_ACCESS_TOKEN : undefined);
 
   if (!phoneNumberId || !token) {
     logger.warn("WhatsApp credentials not configured — skipping send");

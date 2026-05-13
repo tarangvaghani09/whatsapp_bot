@@ -18895,14 +18895,14 @@ var require_etag = __commonJS({
   "../node_modules/.pnpm/etag@1.8.1/node_modules/etag/index.js"(exports, module) {
     "use strict";
     module.exports = etag;
-    var crypto3 = __require("crypto");
+    var crypto5 = __require("crypto");
     var Stats = __require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash = crypto3.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash = crypto5.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash + '"';
     }
@@ -22377,17 +22377,17 @@ var require_content_disposition = __commonJS({
 // ../node_modules/.pnpm/cookie-signature@1.2.2/node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "../node_modules/.pnpm/cookie-signature@1.2.2/node_modules/cookie-signature/index.js"(exports) {
-    var crypto3 = __require("crypto");
+    var crypto5 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto3.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto5.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(input, secret) {
       if ("string" != typeof input) throw new TypeError("Signed cookie string must be provided.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
       var tentativeValue = input.slice(0, input.lastIndexOf(".")), expectedInput = exports.sign(tentativeValue, secret), expectedBuffer = Buffer.from(expectedInput), inputBuffer = Buffer.from(input);
-      return expectedBuffer.length === inputBuffer.length && crypto3.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
+      return expectedBuffer.length === inputBuffer.length && crypto5.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
     };
   }
 });
@@ -28580,11 +28580,11 @@ var require_logger = __commonJS({
 // ../node_modules/.pnpm/cookie-signature@1.0.6/node_modules/cookie-signature/index.js
 var require_cookie_signature2 = __commonJS({
   "../node_modules/.pnpm/cookie-signature@1.0.6/node_modules/cookie-signature/index.js"(exports) {
-    var crypto3 = __require("crypto");
+    var crypto5 = __require("crypto");
     exports.sign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if ("string" != typeof secret) throw new TypeError("Secret string must be provided.");
-      return val + "." + crypto3.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto5.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports.unsign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Signed cookie string must be provided.");
@@ -28593,7 +28593,7 @@ var require_cookie_signature2 = __commonJS({
       return sha1(mac) == sha1(val) ? str2 : false;
     };
     function sha1(str2) {
-      return crypto3.createHash("sha1").update(str2).digest("hex");
+      return crypto5.createHash("sha1").update(str2).digest("hex");
     }
   }
 });
@@ -28998,14 +28998,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "../node_modules/.pnpm/jwa@2.0.1/node_modules/jwa/index.js"(exports, module) {
     var Buffer2 = require_safe_buffer().Buffer;
-    var crypto3 = __require("crypto");
+    var crypto5 = __require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util2 = __require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto3.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto5.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -29095,17 +29095,17 @@ var require_jwa = __commonJS({
       return function sign(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac = crypto3.createHmac("sha" + bits, secret);
+        var hmac = crypto5.createHmac("sha" + bits, secret);
         var sig = (hmac.update(thing), hmac.digest("base64"));
         return fromBase64(sig);
       };
     }
     var bufferEqual;
-    var timingSafeEqual = "timingSafeEqual" in crypto3 ? function timingSafeEqual2(a, b) {
+    var timingSafeEqual = "timingSafeEqual" in crypto5 ? function timingSafeEqual2(a, b) {
       if (a.byteLength !== b.byteLength) {
         return false;
       }
-      return crypto3.timingSafeEqual(a, b);
+      return crypto5.timingSafeEqual(a, b);
     } : function timingSafeEqual2(a, b) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -29122,7 +29122,7 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto3.createSign("RSA-SHA" + bits);
+        var signer = crypto5.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase64(sig);
       };
@@ -29132,7 +29132,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto3.createVerify("RSA-SHA" + bits);
+        var verifier = crypto5.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -29141,11 +29141,11 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto3.createSign("RSA-SHA" + bits);
+        var signer = crypto5.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto3.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto3.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto5.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto5.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase64(sig);
       };
@@ -29155,12 +29155,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto3.createVerify("RSA-SHA" + bits);
+        var verifier = crypto5.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto3.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto3.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto5.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto5.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -33858,7 +33858,7 @@ var require_cert_signatures = __commonJS({
 var require_sasl = __commonJS({
   "../node_modules/.pnpm/pg@8.20.0/node_modules/pg/lib/crypto/sasl.js"(exports, module) {
     "use strict";
-    var crypto3 = require_utils5();
+    var crypto5 = require_utils5();
     var { signatureAlgorithmHashFromCertificate } = require_cert_signatures();
     function startSession(mechanisms, stream) {
       const candidates = ["SCRAM-SHA-256"];
@@ -33870,7 +33870,7 @@ var require_sasl = __commonJS({
       if (mechanism === "SCRAM-SHA-256-PLUS" && typeof stream.getPeerCertificate !== "function") {
         throw new Error("SASL: Mechanism SCRAM-SHA-256-PLUS requires a certificate");
       }
-      const clientNonce = crypto3.randomBytes(18).toString("base64");
+      const clientNonce = crypto5.randomBytes(18).toString("base64");
       const gs2Header = mechanism === "SCRAM-SHA-256-PLUS" ? "p=tls-server-end-point" : stream ? "y" : "n";
       return {
         mechanism,
@@ -33905,20 +33905,20 @@ var require_sasl = __commonJS({
         const peerCert = stream.getPeerCertificate().raw;
         let hashName = signatureAlgorithmHashFromCertificate(peerCert);
         if (hashName === "MD5" || hashName === "SHA-1") hashName = "SHA-256";
-        const certHash = await crypto3.hashByName(hashName, peerCert);
+        const certHash = await crypto5.hashByName(hashName, peerCert);
         const bindingData = Buffer.concat([Buffer.from("p=tls-server-end-point,,"), Buffer.from(certHash)]);
         channelBinding = bindingData.toString("base64");
       }
       const clientFinalMessageWithoutProof = "c=" + channelBinding + ",r=" + sv.nonce;
       const authMessage = clientFirstMessageBare + "," + serverFirstMessage + "," + clientFinalMessageWithoutProof;
       const saltBytes = Buffer.from(sv.salt, "base64");
-      const saltedPassword = await crypto3.deriveKey(password, saltBytes, sv.iteration);
-      const clientKey = await crypto3.hmacSha256(saltedPassword, "Client Key");
-      const storedKey = await crypto3.sha256(clientKey);
-      const clientSignature = await crypto3.hmacSha256(storedKey, authMessage);
+      const saltedPassword = await crypto5.deriveKey(password, saltBytes, sv.iteration);
+      const clientKey = await crypto5.hmacSha256(saltedPassword, "Client Key");
+      const storedKey = await crypto5.sha256(clientKey);
+      const clientSignature = await crypto5.hmacSha256(storedKey, authMessage);
       const clientProof = xorBuffers(Buffer.from(clientKey), Buffer.from(clientSignature)).toString("base64");
-      const serverKey = await crypto3.hmacSha256(saltedPassword, "Server Key");
-      const serverSignatureBytes = await crypto3.hmacSha256(serverKey, authMessage);
+      const serverKey = await crypto5.hmacSha256(saltedPassword, "Server Key");
+      const serverSignatureBytes = await crypto5.hmacSha256(serverKey, authMessage);
       session.message = "SASLResponse";
       session.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
       session.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
@@ -36086,7 +36086,7 @@ var require_client = __commonJS({
     var Query2 = require_query();
     var defaults3 = require_defaults();
     var Connection2 = require_connection();
-    var crypto3 = require_utils5();
+    var crypto5 = require_utils5();
     var activeQueryDeprecationNotice = nodeUtils.deprecate(
       () => {
       },
@@ -36321,7 +36321,7 @@ var require_client = __commonJS({
       _handleAuthMD5Password(msg) {
         this._getPassword(async () => {
           try {
-            const hashedPassword = await crypto3.postgresMd5PasswordHash(this.user, this.password, msg.salt);
+            const hashedPassword = await crypto5.postgresMd5PasswordHash(this.user, this.password, msg.salt);
             this.connection.password(hashedPassword);
           } catch (e) {
             this.emit("error", e);
@@ -62843,8 +62843,9 @@ var logger = (0, import_pino.default)({
 // src/lib/whatsapp.ts
 var WHATSAPP_API_URL = "https://graph.facebook.com/v19.0";
 async function sendWhatsAppMessage(to, message, creds) {
-  const phoneNumberId = creds?.phoneNumberId ?? process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const token = creds?.accessToken ?? process.env.WHATSAPP_ACCESS_TOKEN;
+  const allowEnvFallback = process.env["ALLOW_WHATSAPP_ENV_FALLBACK"] === "true" && process.env["NODE_ENV"] !== "production";
+  const phoneNumberId = creds?.phoneNumberId ?? (allowEnvFallback ? process.env.WHATSAPP_PHONE_NUMBER_ID : void 0);
+  const token = creds?.accessToken ?? (allowEnvFallback ? process.env.WHATSAPP_ACCESS_TOKEN : void 0);
   if (!phoneNumberId || !token) {
     logger.warn("WhatsApp credentials not configured \u2014 skipping send");
     return { ok: false, status: 0, errorBody: "WhatsApp credentials not configured" };
@@ -62908,13 +62909,13 @@ function __classPrivateFieldGet(receiver, state, kind, f) {
 
 // ../node_modules/.pnpm/openai@6.37.0_zod@3.25.76/node_modules/openai/internal/utils/uuid.mjs
 var uuid42 = function() {
-  const { crypto: crypto3 } = globalThis;
-  if (crypto3?.randomUUID) {
-    uuid42 = crypto3.randomUUID.bind(crypto3);
-    return crypto3.randomUUID();
+  const { crypto: crypto5 } = globalThis;
+  if (crypto5?.randomUUID) {
+    uuid42 = crypto5.randomUUID.bind(crypto5);
+    return crypto5.randomUUID();
   }
   const u8 = new Uint8Array(1);
-  const randomByte = crypto3 ? () => crypto3.getRandomValues(u8)[0] : () => Math.random() * 255 & 255;
+  const randomByte = crypto5 ? () => crypto5.getRandomValues(u8)[0] : () => Math.random() * 255 & 255;
   return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (+c ^ randomByte() & 15 >> +c / 4).toString(16));
 };
 
@@ -72110,6 +72111,55 @@ function formatServiceReply(service) {
   return parts.join("\n");
 }
 
+// src/lib/secrets.ts
+import crypto2 from "node:crypto";
+var ENC_PREFIX = "enc:v1";
+function getEncryptionKey() {
+  const raw = process.env["WHATSAPP_TOKEN_ENC_KEY"];
+  if (!raw) return null;
+  try {
+    const b64 = Buffer.from(raw, "base64");
+    if (b64.length === 32) return b64;
+  } catch {
+  }
+  return crypto2.createHash("sha256").update(raw, "utf8").digest();
+}
+function encryptSecret(plain) {
+  if (!plain) return void 0;
+  const key = getEncryptionKey();
+  if (!key) {
+    throw new Error("WHATSAPP_TOKEN_ENC_KEY must be set to store WhatsApp access tokens securely");
+  }
+  const iv = crypto2.randomBytes(12);
+  const cipher = crypto2.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${ENC_PREFIX}:${iv.toString("base64url")}:${encrypted.toString("base64url")}:${tag.toString("base64url")}`;
+}
+function decryptSecret(value) {
+  if (!value) return void 0;
+  if (!value.startsWith(`${ENC_PREFIX}:`)) return value;
+  const key = getEncryptionKey();
+  if (!key) {
+    throw new Error("WHATSAPP_TOKEN_ENC_KEY is required to decrypt stored WhatsApp token");
+  }
+  const [, ivB64, encB64, tagB64] = value.split(":");
+  if (!ivB64 || !encB64 || !tagB64) {
+    throw new Error("Invalid encrypted secret format");
+  }
+  const iv = Buffer.from(ivB64, "base64url");
+  const encrypted = Buffer.from(encB64, "base64url");
+  const tag = Buffer.from(tagB64, "base64url");
+  const decipher = crypto2.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  const plain = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return plain.toString("utf8");
+}
+function maskSecret(value) {
+  if (!value) return null;
+  return "********";
+}
+
 // src/lib/bot-handler.ts
 var DEFAULT_SYSTEM_PROMPT = `You are a helpful WhatsApp assistant for a business.
 Answer only business-related questions. Keep answers short (under 100 words).
@@ -72224,7 +72274,7 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
     return;
   }
   const businessId = business.id;
-  const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken } : void 0;
+  const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
   const customer = await getOrCreateCustomer(phone, businessId);
   await logMessage(customer.id, businessId, "inbound", text2, "none");
   const ratingValue = detectRatingReply(text2);
@@ -72300,6 +72350,7 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
 }
 
 // src/routes/webhook.ts
+import crypto3 from "node:crypto";
 var router2 = (0, import_express2.Router)();
 router2.get("/webhook", async (req, res) => {
   const mode = req.query["hub.mode"];
@@ -72324,6 +72375,22 @@ router2.get("/webhook", async (req, res) => {
   res.sendStatus(403);
 });
 router2.post("/webhook", async (req, res) => {
+  const appSecret = process.env["WHATSAPP_APP_SECRET"];
+  if (appSecret) {
+    const rawBody = req.rawBody;
+    const signature = req.header("x-hub-signature-256");
+    if (!rawBody || !signature || !signature.startsWith("sha256=")) {
+      res.sendStatus(403);
+      return;
+    }
+    const expected = `sha256=${crypto3.createHmac("sha256", appSecret).update(rawBody).digest("hex")}`;
+    const sigBuf = Buffer.from(signature, "utf8");
+    const expBuf = Buffer.from(expected, "utf8");
+    if (sigBuf.length !== expBuf.length || !crypto3.timingSafeEqual(sigBuf, expBuf)) {
+      res.sendStatus(403);
+      return;
+    }
+  }
   res.sendStatus(200);
   const msg = extractMessageFromWebhook(req.body);
   if (!msg) return;
@@ -72338,7 +72405,7 @@ var webhook_default = router2;
 // src/routes/auth.ts
 var import_express3 = __toESM(require_express2(), 1);
 var import_bcryptjs = __toESM(require_bcryptjs(), 1);
-import crypto2 from "crypto";
+import crypto4 from "crypto";
 
 // src/lib/mailer.ts
 import nodemailer from "nodemailer";
@@ -72392,7 +72459,7 @@ var ResetBody = external_exports2.object({
   newPassword: external_exports2.string().min(6)
 });
 function sha256(value) {
-  return crypto2.createHash("sha256").update(value).digest("hex");
+  return crypto4.createHash("sha256").update(value).digest("hex");
 }
 router3.post("/auth/login", async (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
@@ -72438,7 +72505,7 @@ router3.post("/auth/forgot-password", async (req, res) => {
     return;
   }
   const ttlMinutes = Number(process.env["RESET_PASSWORD_TOKEN_TTL_MIN"] ?? "15");
-  const resetToken = crypto2.randomBytes(32).toString("hex");
+  const resetToken = crypto4.randomBytes(32).toString("hex");
   const resetTokenHash = sha256(resetToken);
   const resetTokenExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1e3);
   await db.update(adminUsersTable).set({ resetTokenHash, resetTokenExpiresAt }).where(eq(adminUsersTable.id, user.id));
@@ -72568,6 +72635,17 @@ var UpdateBusinessOwnerBody = external_exports2.object({
   businessIds: external_exports2.array(external_exports2.number().int().positive()).optional(),
   isActive: external_exports2.boolean().optional()
 });
+function toSafeBusiness(b) {
+  return {
+    id: b.id,
+    name: b.name,
+    whatsappPhoneNumberId: b.whatsappPhoneNumberId,
+    whatsappAccessToken: maskSecret(b.whatsappAccessToken),
+    verifyToken: maskSecret(b.verifyToken),
+    createdAt: b.createdAt,
+    updatedAt: b.updatedAt
+  };
+}
 router4.get("/businesses", async (req, res) => {
   const user = req.authUser;
   if (user?.role === "business_admin") {
@@ -72578,11 +72656,11 @@ router4.get("/businesses", async (req, res) => {
       return;
     }
     const businesses2 = await db.select().from(businessesTable).where(inArray(businessesTable.id, ids)).orderBy(businessesTable.id);
-    res.json(businesses2);
+    res.json(businesses2.map(toSafeBusiness));
     return;
   }
   const businesses = await db.select().from(businessesTable).orderBy(businessesTable.id);
-  res.json(businesses);
+  res.json(businesses.map(toSafeBusiness));
 });
 router4.post("/businesses", async (req, res) => {
   if (req.authUser?.role === "business_admin") {
@@ -72594,15 +72672,26 @@ router4.post("/businesses", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  let encryptedToken;
+  try {
+    encryptedToken = encryptSecret(parsed.data.whatsappAccessToken?.trim() || void 0);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+    return;
+  }
   const businessValues = {
     name: parsed.data.name,
-    whatsappPhoneNumberId: parsed.data.whatsappPhoneNumberId,
-    whatsappAccessToken: parsed.data.whatsappAccessToken,
-    verifyToken: parsed.data.verifyToken
+    whatsappPhoneNumberId: parsed.data.whatsappPhoneNumberId?.trim() || void 0,
+    whatsappAccessToken: encryptedToken,
+    verifyToken: parsed.data.verifyToken?.trim() || void 0
   };
   const [business] = await db.insert(businessesTable).values(businessValues).returning();
   await db.insert(settingsTable).values({ businessId: business.id }).onConflictDoNothing();
-  res.status(201).json(business);
+  logger.info(
+    { actorId: req.authUser?.id, businessId: business.id, action: "business.create", credsUpdated: !!businessValues.whatsappAccessToken },
+    "Business created"
+  );
+  res.status(201).json(toSafeBusiness(business));
 });
 router4.post("/business-owners", async (req, res) => {
   if (req.authUser?.role === "business_admin") {
@@ -72640,6 +72729,7 @@ router4.post("/business-owners", async (req, res) => {
     await tx.insert(userBusinessAccessTable).values(businessIds.map((businessId) => ({ userId: user.id, businessId }))).onConflictDoNothing();
     return user;
   });
+  logger.info({ actorId: req.authUser?.id, ownerId: created.id, businessIds, action: "owner.create" }, "Business owner created");
   res.status(201).json({ user: created, businessIds });
 });
 router4.get("/business-owners", async (req, res) => {
@@ -72740,6 +72830,18 @@ router4.patch("/business-owners/:id", async (req, res) => {
     }).from(adminUsersTable).where(eq(adminUsersTable.id, ownerId)).limit(1);
     return user;
   });
+  logger.info(
+    {
+      actorId: req.authUser?.id,
+      ownerId,
+      action: "owner.update",
+      businessIdsUpdated: parsed.data.businessIds ? [...new Set(parsed.data.businessIds)] : void 0,
+      isActive: parsed.data.isActive,
+      emailUpdated: !!parsed.data.email,
+      passwordUpdated: !!parsed.data.password
+    },
+    "Business owner updated"
+  );
   res.json(updated);
 });
 router4.delete("/business-owners/:id", async (req, res) => {
@@ -72759,6 +72861,7 @@ router4.delete("/business-owners/:id", async (req, res) => {
     return;
   }
   await db.delete(adminUsersTable).where(eq(adminUsersTable.id, ownerId));
+  logger.info({ actorId: req.authUser?.id, ownerId, action: "owner.delete" }, "Business owner deleted");
   res.sendStatus(204);
 });
 router4.get("/businesses/:id", async (req, res) => {
@@ -72784,7 +72887,7 @@ router4.get("/businesses/:id", async (req, res) => {
     res.status(404).json({ error: "Business not found" });
     return;
   }
-  res.json(business);
+  res.json(toSafeBusiness(business));
 });
 router4.patch("/businesses/:id", async (req, res) => {
   if (req.authUser?.role === "business_admin") {
@@ -72801,12 +72904,34 @@ router4.patch("/businesses/:id", async (req, res) => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [business] = await db.update(businessesTable).set(parsed.data).where(eq(businessesTable.id, params.data.id)).returning();
+  const setData = {};
+  if (parsed.data.name !== void 0) setData.name = parsed.data.name;
+  if ("whatsappPhoneNumberId" in parsed.data) setData.whatsappPhoneNumberId = parsed.data.whatsappPhoneNumberId?.trim() || null;
+  if ("verifyToken" in parsed.data) setData.verifyToken = parsed.data.verifyToken?.trim() || null;
+  if ("whatsappAccessToken" in parsed.data) {
+    const raw = parsed.data.whatsappAccessToken?.trim() || "";
+    try {
+      setData.whatsappAccessToken = raw ? encryptSecret(raw) : null;
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+  }
+  const [business] = await db.update(businessesTable).set(setData).where(eq(businessesTable.id, params.data.id)).returning();
   if (!business) {
     res.status(404).json({ error: "Business not found" });
     return;
   }
-  res.json(business);
+  logger.info(
+    {
+      actorId: req.authUser?.id,
+      businessId: business.id,
+      action: "business.update",
+      credsUpdated: "whatsappAccessToken" in parsed.data || "whatsappPhoneNumberId" in parsed.data || "verifyToken" in parsed.data
+    },
+    "Business updated"
+  );
+  res.json(toSafeBusiness(business));
 });
 router4.delete("/businesses/:id", async (req, res) => {
   if (req.authUser?.role === "business_admin") {
@@ -72830,6 +72955,14 @@ var businesses_default = router4;
 // src/routes/faqs.ts
 var import_express5 = __toESM(require_express2(), 1);
 
+// src/lib/errors.ts
+var ForbiddenError = class extends Error {
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+};
+
 // src/lib/resolve-business.ts
 var BusinessIdQueryParam = external_exports2.object({
   businessId: external_exports2.coerce.number().optional()
@@ -72840,9 +72973,12 @@ async function resolveBusinessId(req, businessId) {
     const accessRows = await db.select({ businessId: userBusinessAccessTable.businessId }).from(userBusinessAccessTable).where(eq(userBusinessAccessTable.userId, authUser.id));
     const allowedBusinessIds = accessRows.map((r) => r.businessId);
     if (allowedBusinessIds.length === 0) {
-      throw new Error("Forbidden: no business assigned to this admin user");
+      throw new ForbiddenError("No business assigned to this admin user");
     }
     if (businessId && allowedBusinessIds.includes(businessId)) return businessId;
+    if (businessId && !allowedBusinessIds.includes(businessId)) {
+      throw new ForbiddenError("Forbidden for requested business");
+    }
     return allowedBusinessIds[0];
   }
   if (businessId) return businessId;
@@ -73054,7 +73190,7 @@ router7.patch("/bookings/:id", async (req, res) => {
       const [customer] = await db.select().from(customersTable).where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
       const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId)).limit(1);
       if (customer?.phone && business) {
-        const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken } : void 0;
+        const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
         const ref = `#BK-${String(booking.id).padStart(5, "0")}`;
         const lines = [
           `\u2705 *Booking Confirmed!*`,
@@ -73086,7 +73222,7 @@ router7.patch("/bookings/:id", async (req, res) => {
       const [customer] = await db.select().from(customersTable).where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
       const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId)).limit(1);
       if (customer?.phone && business) {
-        const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken } : void 0;
+        const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
         const ref = `#BK-${String(booking.id).padStart(5, "0")}`;
         const lines = [
           `\u274C *Booking Update*`,
@@ -73117,7 +73253,7 @@ router7.patch("/bookings/:id", async (req, res) => {
       const [customer] = await db.select().from(customersTable).where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
       const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId)).limit(1);
       if (customer?.phone && business) {
-        const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken } : void 0;
+        const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
         const name = customer.name?.split(" ")[0] ?? "there";
         const lines = [
           `\u{1F389} *Thank you for visiting us, ${name}!*`,
@@ -73174,7 +73310,7 @@ router7.post("/bookings/:id/reschedule", async (req, res) => {
     const [customer] = await db.select().from(customersTable).where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
     const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId)).limit(1);
     if (customer?.phone && business) {
-      const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken } : void 0;
+      const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
       const ref = `#BK-${String(booking.id).padStart(5, "0")}`;
       const lines = [
         `\u{1F4C5} *Booking Rescheduled*`,
@@ -73323,7 +73459,7 @@ router8.post("/customers/:id/reply", async (req, res) => {
     return;
   }
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId)).limit(1);
-  const creds = business?.whatsappPhoneNumberId && business?.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken } : void 0;
+  const creds = business?.whatsappPhoneNumberId && business?.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
   const sendResult = await sendWhatsAppMessage(customer.phone, parsed.data.message, creds);
   if (!sendResult.ok) {
     logger.warn({ customerId: id, status: sendResult.status }, "Quick reply WhatsApp send failed");
@@ -73364,7 +73500,7 @@ router8.post("/customers/broadcast", async (req, res) => {
   }
   const { customerIds, message } = parsed.data;
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId)).limit(1);
-  const creds = business?.whatsappPhoneNumberId && business?.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken } : void 0;
+  const creds = business?.whatsappPhoneNumberId && business?.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
   const customers = await db.select().from(customersTable).where(and(inArray(customersTable.id, customerIds), eq(customersTable.businessId, businessId)));
   let sent = 0;
   let failed = 0;
@@ -73995,9 +74131,23 @@ app.use(
 );
 app.use((0, import_cors.default)());
 app.use((0, import_cookie_parser.default)());
-app.use(import_express18.default.json());
+app.use(
+  import_express18.default.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = Buffer.from(buf);
+    }
+  })
+);
 app.use(import_express18.default.urlencoded({ extended: true }));
 app.use("/api", routes_default);
+app.use((err, _req, res, _next) => {
+  if (err instanceof ForbiddenError) {
+    res.status(403).json({ error: err.message });
+    return;
+  }
+  logger.error({ err }, "Unhandled server error");
+  res.status(500).json({ error: "Internal server error" });
+});
 var app_default = app;
 
 // src/index.ts

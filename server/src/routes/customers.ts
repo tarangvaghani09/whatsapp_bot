@@ -6,6 +6,7 @@ import { ListCustomersQueryParams, GetCustomerParams } from "@workspace/api-zod"
 import { BusinessIdQueryParam, resolveBusinessId } from "../lib/resolve-business";
 import { sendWhatsAppMessage, type BusinessCreds } from "../lib/whatsapp";
 import { logger } from "../lib/logger";
+import { decryptSecret } from "../lib/secrets";
 
 const router: IRouter = Router();
 
@@ -153,7 +154,7 @@ router.post("/customers/:id/reply", async (req, res): Promise<void> => {
 
   const creds: BusinessCreds | undefined =
     business?.whatsappPhoneNumberId && business?.whatsappAccessToken
-      ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken }
+      ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken)! }
       : undefined;
 
   const sendResult = await sendWhatsAppMessage(customer.phone, parsed.data.message, creds);
@@ -207,7 +208,7 @@ router.post("/customers/broadcast", async (req, res): Promise<void> => {
 
   const creds: BusinessCreds | undefined =
     business?.whatsappPhoneNumberId && business?.whatsappAccessToken
-      ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken }
+      ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken)! }
       : undefined;
 
   const customers = await db.select().from(customersTable)

@@ -12,6 +12,7 @@ import {
 import { BusinessIdQueryParam, resolveBusinessId } from "../lib/resolve-business";
 import { sendWhatsAppMessage, type BusinessCreds } from "../lib/whatsapp";
 import { logger } from "../lib/logger";
+import { decryptSecret } from "../lib/secrets";
 
 const router: IRouter = Router();
 
@@ -127,7 +128,7 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
       if (customer?.phone && business) {
         const creds: BusinessCreds | undefined =
           business.whatsappPhoneNumberId && business.whatsappAccessToken
-            ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken }
+            ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken)! }
             : undefined;
 
         const ref = `#BK-${String(booking.id).padStart(5, "0")}`;
@@ -168,7 +169,7 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
       if (customer?.phone && business) {
         const creds: BusinessCreds | undefined =
           business.whatsappPhoneNumberId && business.whatsappAccessToken
-            ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken }
+            ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken)! }
             : undefined;
 
         const ref = `#BK-${String(booking.id).padStart(5, "0")}`;
@@ -208,7 +209,7 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
       if (customer?.phone && business) {
         const creds: BusinessCreds | undefined =
           business.whatsappPhoneNumberId && business.whatsappAccessToken
-            ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken }
+            ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken)! }
             : undefined;
 
         const name = customer.name?.split(" ")[0] ?? "there";
@@ -276,7 +277,7 @@ router.post("/bookings/:id/reschedule", async (req, res): Promise<void> => {
     if (customer?.phone && business) {
       const creds: BusinessCreds | undefined =
         business.whatsappPhoneNumberId && business.whatsappAccessToken
-          ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken }
+          ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken)! }
           : undefined;
 
       const ref = `#BK-${String(booking.id).padStart(5, "0")}`;

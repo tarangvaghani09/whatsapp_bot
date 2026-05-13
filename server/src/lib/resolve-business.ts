@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Request } from "express";
 import { eq } from "drizzle-orm";
 import { db, businessesTable, userBusinessAccessTable } from "@workspace/db";
+import { ForbiddenError } from "./errors";
 
 export const BusinessIdQueryParam = z.object({
   businessId: z.coerce.number().optional(),
@@ -18,10 +19,13 @@ export async function resolveBusinessId(req: Request, businessId?: number): Prom
 
     const allowedBusinessIds = accessRows.map((r) => r.businessId);
     if (allowedBusinessIds.length === 0) {
-      throw new Error("Forbidden: no business assigned to this admin user");
+      throw new ForbiddenError("No business assigned to this admin user");
     }
 
     if (businessId && allowedBusinessIds.includes(businessId)) return businessId;
+    if (businessId && !allowedBusinessIds.includes(businessId)) {
+      throw new ForbiddenError("Forbidden for requested business");
+    }
     return allowedBusinessIds[0]!;
   }
 

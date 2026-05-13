@@ -4,6 +4,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { sendWhatsAppMessage, type BusinessCreds, type SendResult } from "./whatsapp";
 import { matchFaq, matchService, detectBookingIntent, detectGreeting, formatServiceReply } from "./faq-matcher";
 import { logger } from "./logger";
+import { decryptSecret } from "./secrets";
 
 const DEFAULT_SYSTEM_PROMPT = `You are a helpful WhatsApp assistant for a business.
 Answer only business-related questions. Keep answers short (under 100 words).
@@ -141,7 +142,7 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
   const businessId = business.id;
   const creds: BusinessCreds | undefined =
     business.whatsappPhoneNumberId && business.whatsappAccessToken
-      ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: business.whatsappAccessToken }
+      ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken)! }
       : undefined;
 
   const customer = await getOrCreateCustomer(phone, businessId);
