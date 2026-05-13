@@ -229,6 +229,13 @@ export default function BusinessesPage() {
       }
       await invalidate();
       closeDialog();
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to save business.";
+      setFormError(message);
+      toast({ title: "Save failed", description: message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
