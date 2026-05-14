@@ -135,17 +135,17 @@ export default function FaqsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">FAQs</h1>
           <p className="text-sm text-gray-500 mt-0.5">Answers matched first - no AI cost</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
           {filtered.length > 0 && (
             <button
               type="button"
               onClick={() => toggleSelectAllFiltered(!filtered.every((f) => selectedFaqIds.includes(f.id)))}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors"
+              className="inline-flex min-h-[44px] items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors"
             >
               {filtered.every((f) => selectedFaqIds.includes(f.id)) ? (
                 <>
@@ -162,7 +162,7 @@ export default function FaqsPage() {
           )}
           <button
             onClick={openCreate}
-            className="group relative inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-200 hover:shadow-purple-300 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 whitespace-nowrap overflow-hidden"
+            className="group relative inline-flex min-h-[44px] items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-200 hover:shadow-purple-300 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 whitespace-nowrap overflow-hidden"
           >
             <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-200 rounded-2xl" />
             <span className="relative flex items-center gap-2">

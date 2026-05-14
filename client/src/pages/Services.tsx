@@ -166,17 +166,17 @@ export default function ServicesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Services</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-snug">Price/service questions answered from DB - no AI cost</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:flex-nowrap sm:justify-end">
           {services.length > 0 && (
             <button
               type="button"
               onClick={() => toggleSelectAllServices(!services.every((s) => selectedServiceIds.includes(s.id)))}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors"
+              className="inline-flex w-full min-h-[44px] items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors sm:w-auto"
             >
               {services.every((s) => selectedServiceIds.includes(s.id)) ? (
                 <>
@@ -193,7 +193,7 @@ export default function ServicesPage() {
           )}
           <button
             onClick={openCreate}
-            className="group relative inline-flex items-center gap-2 flex-shrink-0 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white font-semibold text-sm shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 overflow-hidden whitespace-nowrap"
+            className="group relative inline-flex w-full min-h-[44px] items-center justify-center gap-2 flex-shrink-0 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white font-semibold text-sm shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 overflow-hidden whitespace-nowrap sm:w-auto"
           >
             <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-200 rounded-2xl" />
             <span className="relative flex items-center gap-2">

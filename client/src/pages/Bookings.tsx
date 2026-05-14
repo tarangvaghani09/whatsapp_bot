@@ -268,7 +268,7 @@ export default function BookingsPage() {
         {pendingBookings.length > 0 && (
           <button
             onClick={toggleSelectAll}
-            className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
+            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
           >
             {allPendingSelected
               ? <CheckSquare className="w-4 h-4 text-indigo-600" />

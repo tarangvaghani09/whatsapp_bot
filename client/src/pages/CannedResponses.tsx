@@ -104,14 +104,14 @@ export default function CannedResponsesPage() {
 
   return (
     <div className="space-y-5 pb-10">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Canned Responses</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-snug">Saved reply snippets for quick insertion in conversations</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm whitespace-nowrap"
+          className="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm whitespace-nowrap"
         >
           <Plus className="w-4 h-4 flex-shrink-0" /> New snippet
         </button>

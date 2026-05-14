@@ -213,10 +213,33 @@ export default function AuthPage({ onAuthed }: Props) {
             </button>
           )}
 
-          <div className="pt-1 text-sm text-gray-500 flex items-center justify-between">
-            <button className="hover:text-gray-800" onClick={() => setLocation("/login")}>Login</button>
-            <button className="hover:text-gray-800" onClick={() => setLocation("/forgot-password")}>Forgot password</button>
-            <button className="hover:text-gray-800" onClick={() => setLocation("/create-admin")}>First setup</button>
+          <div className="pt-2">
+            <div className="grid grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+              <button
+                className={`h-9 rounded-lg text-sm font-medium transition-colors ${
+                  mode === "login" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
+                }`}
+                onClick={() => setLocation("/login")}
+              >
+                Login
+              </button>
+              <button
+                className={`h-9 rounded-lg text-sm font-medium transition-colors ${
+                  mode === "forgot" ? "bg-white text-amber-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
+                }`}
+                onClick={() => setLocation("/forgot-password")}
+              >
+                Forgot password
+              </button>
+              <button
+                className={`h-9 rounded-lg text-sm font-medium transition-colors ${
+                  mode === "bootstrap" ? "bg-white text-indigo-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
+                }`}
+                onClick={() => setLocation("/create-admin")}
+              >
+                First setup
+              </button>
+            </div>
           </div>
         </div>
       </div>

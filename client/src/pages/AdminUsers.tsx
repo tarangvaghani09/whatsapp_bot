@@ -212,7 +212,7 @@ export default function AdminUsersPage() {
         </div>
         <button
           onClick={() => setOwnerDialog({ open: true, form: EMPTY_OWNER })}
-          className="self-start sm:self-auto inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white font-semibold text-sm shadow-lg shadow-sky-200 hover:from-sky-600 hover:to-cyan-700"
+          className="inline-flex w-full sm:w-auto items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white font-semibold text-sm shadow-lg shadow-sky-200 hover:from-sky-600 hover:to-cyan-700"
         >
           <Key className="w-4 h-4" /> Add Admin User
         </button>

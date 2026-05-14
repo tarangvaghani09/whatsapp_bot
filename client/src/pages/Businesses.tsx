@@ -395,23 +395,23 @@ export default function BusinessesPage() {
 
   return (
     <div className="space-y-5 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Businesses</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage your WhatsApp bot businesses</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
           {businessId && (
             <button
               onClick={() => { setSeedType(null); setSeedDialog(true); }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white font-semibold text-sm shadow-lg shadow-purple-200 hover:from-violet-600 hover:to-purple-700 hover:shadow-purple-300 active:scale-[0.97] transition-all duration-150 whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white font-semibold text-sm shadow-lg shadow-purple-200 hover:from-violet-600 hover:to-purple-700 hover:shadow-purple-300 active:scale-[0.97] transition-all duration-150 whitespace-nowrap"
             >
               <Sparkles className="w-4 h-4" /> Quick Setup
             </button>
           )}
           <button
             onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-green-500 to-green-600 text-white font-semibold text-sm shadow-lg shadow-green-200 hover:from-green-600 hover:to-green-700 hover:shadow-green-300 active:scale-[0.97] transition-all duration-150 whitespace-nowrap"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-green-500 to-green-600 text-white font-semibold text-sm shadow-lg shadow-green-200 hover:from-green-600 hover:to-green-700 hover:shadow-green-300 active:scale-[0.97] transition-all duration-150 whitespace-nowrap"
           >
             <Plus className="w-4 h-4" /> Add Business
           </button>
