@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Pencil, Trash2, Search, Tag, HelpCircle, X, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Tag, HelpCircle, X, AlertCircle, CheckSquare, Square } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessId } from "@/context/BusinessContext";
 
@@ -40,6 +40,8 @@ export default function FaqsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id?: number; question?: string }>({ open: false });
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [selectedFaqIds, setSelectedFaqIds] = useState<number[]>([]);
   const [dialog, setDialog] = useState<{ open: boolean; id?: number; form: FaqForm }>({
     open: false,
     form: EMPTY,
@@ -52,6 +54,18 @@ export default function FaqsPage() {
       f.question.toLowerCase().includes(search.toLowerCase()) ||
       f.answer.toLowerCase().includes(search.toLowerCase()),
   );
+
+  function toggleFaqSelected(id: number, checked: boolean) {
+    setSelectedFaqIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
+  }
+
+  function toggleSelectAllFiltered(checked: boolean) {
+    const filteredIds = filtered.map((f) => f.id);
+    setSelectedFaqIds((prev) => {
+      if (checked) return [...new Set([...prev, ...filteredIds])];
+      return prev.filter((id) => !filteredIds.includes(id));
+    });
+  }
 
   function openCreate() { setDialog({ open: true, form: EMPTY }); }
   function openEdit(faq: (typeof faqs)[0]) {
@@ -106,6 +120,17 @@ export default function FaqsPage() {
     setDeleteConfirm({ open: false });
   }
 
+  async function handleBulkDelete() {
+    if (selectedFaqIds.length === 0) return;
+    for (const id of selectedFaqIds) {
+      await deleteFaq.mutateAsync({ id, params: { businessId } });
+    }
+    toast({ title: `${selectedFaqIds.length} FAQs deleted` });
+    setSelectedFaqIds([]);
+    setBulkDeleteConfirm(false);
+    invalidate();
+  }
+
   const isEditing = !!dialog.id;
 
   return (
@@ -115,18 +140,39 @@ export default function FaqsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">FAQs</h1>
           <p className="text-sm text-gray-500 mt-0.5">Answers matched first - no AI cost</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="group relative inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-200 hover:shadow-purple-300 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 whitespace-nowrap overflow-hidden"
-        >
-          <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-200 rounded-2xl" />
-          <span className="relative flex items-center gap-2">
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20">
-              <Plus className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-2">
+          {filtered.length > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleSelectAllFiltered(!filtered.every((f) => selectedFaqIds.includes(f.id)))}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors"
+            >
+              {filtered.every((f) => selectedFaqIds.includes(f.id)) ? (
+                <>
+                  <CheckSquare className="w-4 h-4 text-indigo-600" />
+                  Deselect all
+                </>
+              ) : (
+                <>
+                  <Square className="w-4 h-4 text-gray-500" />
+                  Select all shown ({filtered.length})
+                </>
+              )}
+            </button>
+          )}
+          <button
+            onClick={openCreate}
+            className="group relative inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-200 hover:shadow-purple-300 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 whitespace-nowrap overflow-hidden"
+          >
+            <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-200 rounded-2xl" />
+            <span className="relative flex items-center gap-2">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20">
+                <Plus className="w-3.5 h-3.5" />
+              </span>
+              Add FAQ
             </span>
-            Add FAQ
-          </span>
-        </button>
+          </button>
+        </div>
       </div>
 
       <div className="relative group">
@@ -162,9 +208,30 @@ export default function FaqsPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((faq) => (
-            <Card key={faq.id} className="border border-gray-200 shadow-sm hover:shadow-md hover:border-green-300 transition-all">
+            <Card
+              key={faq.id}
+              className={`border shadow-sm hover:shadow-md transition-all duration-150${
+                selectedFaqIds.includes(faq.id)
+                  ? "border-violet-300 bg-violet-50/50 ring-1 ring-violet-200"
+                  : "border-gray-200 hover:border-green-300"
+              }`}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => toggleFaqSelected(faq.id, !selectedFaqIds.includes(faq.id))}
+                      className="flex-shrink-0 text-gray-400 hover:text-indigo-600 transition-colors"
+                      aria-label={selectedFaqIds.includes(faq.id) ? "Deselect FAQ" : "Select FAQ"}
+                    >
+                      {selectedFaqIds.includes(faq.id) ? (
+                        <CheckSquare className="w-5 h-5 text-violet-600" />
+                      ) : (
+                        <Square className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <p className="font-semibold text-gray-900 text-sm">{faq.question}</p>
@@ -224,6 +291,63 @@ export default function FaqsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <AlertDialogContent className="max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-semibold">Delete selected FAQs?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500">
+              You are deleting {selectedFaqIds.length} selected FAQ items. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-gray-200 text-sm font-medium">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold"
+              onClick={handleBulkDelete}
+            >
+              Delete Selected
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {selectedFaqIds.length > 0 && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
+          <div className="w-[min(92vw,640px)] flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-2xl border border-slate-700">
+            <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-sm font-bold">
+              {selectedFaqIds.length}
+            </div>
+              <span className="text-sm font-semibold whitespace-nowrap"> FAQs selected</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setSelectedFaqIds([])}
+              className="px-3 py-1.5 rounded-xl border border-slate-500 text-slate-100 hover:bg-slate-800 text-sm font-medium transition-colors"
+            >
+              Deselect
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkDeleteConfirm(true)}
+              className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+            >
+              Delete all
+            </button>
+              <button
+                type="button"
+                onClick={() => setSelectedFaqIds([])}
+                aria-label="Close selection"
+                className="w-8 h-8 inline-flex items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Dialog open={dialog.open} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="p-0 overflow-hidden sm:max-w-lg sm:rounded-2xl flex flex-col max-h-[92dvh]">

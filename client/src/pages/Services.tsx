@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Pencil, Trash2, Tag, Clock, Coins, Layers, X, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, Clock, Coins, Layers, X, AlertCircle, CheckSquare, Square } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinessId } from "@/context/BusinessContext";
 
@@ -55,6 +55,8 @@ export default function ServicesPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id?: number; name?: string }>({ open: false });
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: getListServicesQueryKey({ businessId }) });
 
@@ -124,6 +126,29 @@ export default function ServicesPage() {
     return acc;
   }, {});
 
+  function toggleServiceSelected(id: number, checked: boolean) {
+    setSelectedServiceIds((prev) => (checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id)));
+  }
+
+  function toggleSelectAllServices(checked: boolean) {
+    const allIds = services.map((s) => s.id);
+    setSelectedServiceIds((prev) => {
+      if (checked) return [...new Set([...prev, ...allIds])];
+      return prev.filter((id) => !allIds.includes(id));
+    });
+  }
+
+  async function handleBulkDelete() {
+    if (selectedServiceIds.length === 0) return;
+    for (const id of selectedServiceIds) {
+      await deleteService.mutateAsync({ id, params: { businessId } });
+    }
+    toast({ title: `${selectedServiceIds.length} services deleted` });
+    setSelectedServiceIds([]);
+    setBulkDeleteConfirm(false);
+    invalidate();
+  }
+
   const isEditing = !!dialog.id;
   const currencyCode = settings?.currency ?? "USD";
   const currencySymbol = (() => {
@@ -146,18 +171,39 @@ export default function ServicesPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Services</h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-snug">Price/service questions answered from DB - no AI cost</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="group relative inline-flex items-center gap-2 flex-shrink-0 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white font-semibold text-sm shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 overflow-hidden whitespace-nowrap"
-        >
-          <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-200 rounded-2xl" />
-          <span className="relative flex items-center gap-2">
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 flex-shrink-0">
-              <Plus className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-2">
+          {services.length > 0 && (
+            <button
+              type="button"
+              onClick={() => toggleSelectAllServices(!services.every((s) => selectedServiceIds.includes(s.id)))}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors"
+            >
+              {services.every((s) => selectedServiceIds.includes(s.id)) ? (
+                <>
+                  <CheckSquare className="w-4 h-4 text-violet-600" />
+                  Deselect all
+                </>
+              ) : (
+                <>
+                  <Square className="w-4 h-4 text-gray-500" />
+                  Select all services ({services.length})
+                </>
+              )}
+            </button>
+          )}
+          <button
+            onClick={openCreate}
+            className="group relative inline-flex items-center gap-2 flex-shrink-0 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white font-semibold text-sm shadow-lg shadow-emerald-200 hover:shadow-emerald-300 hover:shadow-xl hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 overflow-hidden whitespace-nowrap"
+          >
+            <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-200 rounded-2xl" />
+            <span className="relative flex items-center gap-2">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white/20 flex-shrink-0">
+                <Plus className="w-3.5 h-3.5" />
+              </span>
+              Add Service
             </span>
-            Add Service
-          </span>
-        </button>
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -179,9 +225,30 @@ export default function ServicesPage() {
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{cat}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {list.map((s) => (
-                  <Card key={s.id} className="border border-gray-200 shadow-sm hover:shadow-md hover:border-green-300 transition-all">
+                  <Card
+                    key={s.id}
+                    className={`border shadow-sm hover:shadow-md transition-all duration-150${
+                      selectedServiceIds.includes(s.id)
+                        ? "border-violet-300 bg-violet-50/50 ring-1 ring-violet-200"
+                        : "border-gray-200 hover:border-green-300"
+                    }`}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-2">
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => toggleServiceSelected(s.id, !selectedServiceIds.includes(s.id))}
+                            className="flex-shrink-0 text-gray-400 hover:text-indigo-600 transition-colors"
+                            aria-label={selectedServiceIds.includes(s.id) ? "Deselect service" : "Select service"}
+                          >
+                            {selectedServiceIds.includes(s.id) ? (
+                              <CheckSquare className="w-5 h-5 text-violet-600" />
+                            ) : (
+                              <Square className="w-5 h-5" />
+                            )}
+                          </button>
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <p className="font-semibold text-sm text-gray-900">{s.name}</p>
@@ -255,6 +322,63 @@ export default function ServicesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+        <AlertDialogContent className="max-w-sm rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-base font-semibold">Delete selected services?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-gray-500">
+              You are deleting {selectedServiceIds.length} selected services. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="rounded-xl border-gray-200 text-sm font-medium">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold"
+              onClick={handleBulkDelete}
+            >
+              Delete Selected
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {selectedServiceIds.length > 0 && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
+          <div className="w-[min(92vw,640px)] flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-2xl border border-slate-700">
+            <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-sm font-bold">
+              {selectedServiceIds.length}
+            </div>
+              <span className="text-sm font-semibold whitespace-nowrap"> services selected</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setSelectedServiceIds([])}
+              className="px-3 py-1.5 rounded-xl border border-slate-500 text-slate-100 hover:bg-slate-800 text-sm font-medium transition-colors"
+            >
+              Deselect
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkDeleteConfirm(true)}
+              className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+            >
+              Delete all
+            </button>
+              <button
+                type="button"
+                onClick={() => setSelectedServiceIds([])}
+                aria-label="Close selection"
+                className="w-8 h-8 inline-flex items-center justify-center rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Dialog open={dialog.open} onOpenChange={(o) => !o && closeDialog()}>
         <DialogContent className="p-0 overflow-hidden sm:max-w-lg sm:rounded-2xl flex flex-col max-h-[92dvh]">
