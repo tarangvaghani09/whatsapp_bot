@@ -73197,11 +73197,8 @@ router3.post("/auth/forgot-password", async (req, res) => {
   }
   const email3 = parsed.data.email.toLowerCase().trim();
   const [user] = await db.select().from(adminUsersTable).where(eq(adminUsersTable.email, email3)).limit(1);
-  const generic = {
-    message: "If that email exists, a reset link has been created."
-  };
   if (!user) {
-    res.json(generic);
+    res.status(404).json({ error: "Email is not registered" });
     return;
   }
   const ttlMinutes = Number(process.env["RESET_PASSWORD_TOKEN_TTL_MIN"] ?? "15");
@@ -73211,8 +73208,12 @@ router3.post("/auth/forgot-password", async (req, res) => {
   await db.update(adminUsersTable).set({ resetTokenHash, resetTokenExpiresAt }).where(eq(adminUsersTable.id, user.id));
   const appOrigin = process.env["APP_ORIGIN"] ?? "http://localhost:5173";
   const resetUrl = `${appOrigin.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(resetToken)}`;
-  await sendPasswordResetEmail(user.email, resetUrl, ttlMinutes);
-  res.json(generic);
+  try {
+    await sendPasswordResetEmail(user.email, resetUrl, ttlMinutes);
+    res.json({ message: "Reset link sent successfully. Please check your email." });
+  } catch {
+    res.status(500).json({ error: "Technical error while sending reset email. Please try again." });
+  }
 });
 router3.post("/auth/reset-password", async (req, res) => {
   const parsed = ResetBody.safeParse(req.body);
@@ -73271,37 +73272,9 @@ router3.post("/auth/logout", (req, res) => {
   res.json({ ok: true });
 });
 router3.post("/auth/bootstrap", async (req, res) => {
-  const countRows = await db.select({ count: sql`count(*)` }).from(adminUsersTable);
-  const count2 = Number(countRows[0]?.count ?? 0);
-  if (count2 > 0) {
-    res.status(409).json({ error: "Admin user already exists" });
-    return;
-  }
-  const parsed = external_exports2.object({
-    email: external_exports2.string().email(),
-    password: external_exports2.string().min(6),
-    name: external_exports2.string().trim().min(1).max(80).optional()
-  }).safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const email3 = parsed.data.email.toLowerCase().trim();
-  const passwordHash = await import_bcryptjs.default.hash(parsed.data.password, 10);
-  const [created] = await db.insert(adminUsersTable).values({
-    email: email3,
-    passwordHash,
-    role: "super_admin",
-    name: parsed.data.name?.trim() || null
-  }).returning({
-    id: adminUsersTable.id,
-    email: adminUsersTable.email,
-    name: adminUsersTable.name,
-    role: adminUsersTable.role
+  res.status(403).json({
+    error: "Bootstrap is disabled. Create admin directly in database or by super admin panel."
   });
-  const token = signAuthToken({ id: created.id, email: created.email, role: "super_admin" });
-  setAuthCookie(res, token);
-  res.status(201).json({ user: { ...created, role: "super_admin" } });
 });
 var auth_default = router3;
 

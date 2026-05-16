@@ -40,7 +40,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/login": "Login | WhatsApp Bot Admin",
   "/forgot-password": "Forgot Password | WhatsApp Bot Admin",
   "/reset-password": "Reset Password | WhatsApp Bot Admin",
-  "/create-admin": "Create Admin | WhatsApp Bot Admin",
 };
 
 function PageTitleManager() {
@@ -60,7 +59,7 @@ type RouterProps = {
 
 function Router({ authed, role, setAuthed, refreshSession }: RouterProps) {
   const [location, setLocation] = useLocation();
-  const authPath = location === "/login" || location === "/forgot-password" || location === "/reset-password" || location === "/create-admin";
+  const authPath = location === "/login" || location === "/forgot-password" || location === "/reset-password";
   const restrictedForBusinessAdmin = location === "/test-bot" || location === "/businesses" || location === "/admin-users";
 
   async function handleLogout() {
