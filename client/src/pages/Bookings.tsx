@@ -63,6 +63,47 @@ function StarDisplay({ rating }: { rating: number | null | undefined }) {
   );
 }
 
+function formatRequestedDate(value?: string | null): string {
+  if (!value) return "";
+  const raw = value.trim();
+  const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+
+  const dmy = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dmy) return `${dmy[1]}-${dmy[2]}-${dmy[3]}`;
+
+  const isoPrefix = raw.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+  if (isoPrefix) return `${isoPrefix[1]}-${isoPrefix[2]}-${isoPrefix[3]}`;
+
+  return value;
+}
+
+function formatRequestedTime(value?: string | null): string {
+  if (!value) return "";
+  const clean = value.trim().toLowerCase().replace(/\s+/g, "");
+
+  const m24 = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (m24) {
+    const h24 = Number(m24[1]);
+    const minute = m24[2];
+    if (h24 >= 0 && h24 <= 23) {
+      const ampm = h24 >= 12 ? "PM" : "AM";
+      const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+      return `${String(h12).padStart(2, "0")}:${minute} ${ampm}`;
+    }
+  }
+
+  const m12 = clean.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
+  if (m12) {
+    const h = Number(m12[1]);
+    const minute = m12[2] ?? "00";
+    const ampm = m12[3].toUpperCase();
+    if (h >= 1 && h <= 12) return `${String(h).padStart(2, "0")}:${minute} ${ampm}`;
+  }
+
+  return value;
+}
+
 export default function BookingsPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -363,13 +404,13 @@ export default function BookingsPage() {
                     {b.requestedDate && (
                       <span className="flex items-center gap-1.5">
                         <Calendar className="w-3 h-3 shrink-0 text-gray-400" />
-                        {b.requestedDate}
+                        {formatRequestedDate(b.requestedDate)}
                       </span>
                     )}
                     {b.requestedTime && (
                       <span className="flex items-center gap-1.5">
                         <Clock className="w-3 h-3 shrink-0 text-gray-400" />
-                        {b.requestedTime}
+                        {formatRequestedTime(b.requestedTime)}
                       </span>
                     )}
                   </div>

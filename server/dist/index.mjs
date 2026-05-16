@@ -73855,6 +73855,17 @@ function formatDisplayTime(date6) {
 
 // src/routes/bookings.ts
 var router7 = (0, import_express7.Router)();
+function toDisplayTime(requestedDate, requestedTime) {
+  if (!requestedTime) return null;
+  const parsed = parseAppointmentDateTime(requestedDate ?? "2000-01-01", requestedTime);
+  return parsed ? formatDisplayTime(parsed) : requestedTime;
+}
+function toDisplayDate(requestedDate) {
+  if (!requestedDate) return null;
+  const ymd = requestedDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) return `${ymd[3]}-${ymd[2]}-${ymd[1]}`;
+  return requestedDate;
+}
 router7.get("/bookings", async (req, res) => {
   const q = BusinessIdQueryParam.safeParse(req.query);
   const businessId = await resolveBusinessId(req, q.data?.businessId);
@@ -73950,8 +73961,10 @@ router7.patch("/bookings/:id", async (req, res) => {
           `\u{1F4CB} Reference: *${ref}*`
         ];
         if (booking.service) lines.push(`\u{1F487} Service: ${booking.service}`);
-        if (booking.requestedDate) lines.push(`\u{1F4C5} Date: ${booking.requestedDate}`);
-        if (booking.requestedTime) lines.push(`\u{1F550} Time: ${booking.requestedTime}`);
+        const displayDate = toDisplayDate(booking.requestedDate);
+        if (displayDate) lines.push(`\u{1F4C5} Date: ${displayDate}`);
+        const displayTime = toDisplayTime(booking.requestedDate, booking.requestedTime);
+        if (displayTime) lines.push(`\u{1F550} Time: ${displayTime}`);
         lines.push(``, `We look forward to seeing you! Reply to this message if you need to reschedule. \u{1F60A}`);
         const message = lines.join("\n");
         await sendWhatsAppMessage(customer.phone, message, creds);
@@ -73982,7 +73995,8 @@ router7.patch("/bookings/:id", async (req, res) => {
           `\u{1F4CB} Reference: *${ref}*`
         ];
         if (booking.service) lines.push(`\u{1F487} Service: ${booking.service}`);
-        if (booking.requestedDate) lines.push(`\u{1F4C5} Requested date: ${booking.requestedDate}`);
+        const requestedDisplayDate = toDisplayDate(booking.requestedDate);
+        if (requestedDisplayDate) lines.push(`\u{1F4C5} Requested date: ${requestedDisplayDate}`);
         lines.push(``, `We apologise for any inconvenience. Please reply to this message or contact us directly to find a suitable time. We'd love to see you! \u{1F60A}`);
         const message = lines.join("\n");
         await sendWhatsAppMessage(customer.phone, message, creds);
@@ -74075,8 +74089,8 @@ router7.post("/bookings/:id/reschedule", async (req, res) => {
         `\u{1F4CB} Reference: *${ref}*`
       ];
       if (booking.service) lines.push(`\u{1F487} Service: ${booking.service}`);
-      lines.push(`\u{1F4C5} New Date: *${requestedDate}*`);
-      lines.push(`\u{1F550} New Time: *${requestedTime}*`);
+      lines.push(`\u{1F4C5} New Date: *${toDisplayDate(requestedDate) ?? requestedDate}*`);
+      lines.push(`\u{1F550} New Time: *${toDisplayTime(requestedDate, requestedTime) ?? requestedTime}*`);
       lines.push(``, `Please reply if this doesn't work for you and we'll find another time. See you soon! \u{1F60A}`);
       const message = lines.join("\n");
       await sendWhatsAppMessage(customer.phone, message, creds);
