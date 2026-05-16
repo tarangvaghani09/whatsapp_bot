@@ -22,6 +22,7 @@ type FlowData = {
   selectedService?: string;
   requestedDate?: string;
   requestedTime?: string;
+  invalidCount?: number;
 };
 
 type CustomerFlowCarrier = {
@@ -163,6 +164,21 @@ function parseFlowData(raw: string | null | undefined): FlowData {
 function serializeFlowData(data: FlowData | null | undefined): string | null {
   if (!data || Object.keys(data).length === 0) return null;
   return JSON.stringify(data);
+}
+
+function resetInvalidCount(data: FlowData): FlowData {
+  const next = { ...data };
+  delete next.invalidCount;
+  return next;
+}
+
+function incrementInvalidCount(data: FlowData): FlowData {
+  return { ...data, invalidCount: (data.invalidCount ?? 0) + 1 };
+}
+
+function withRetryGuard(message: string, data: FlowData): string {
+  if ((data.invalidCount ?? 0) < 2) return message;
+  return `${message}\n\nI didn't get that. Reply with category number (1-5) or type 'menu' to go back.`;
 }
 
 function findMenuSelection(text: string, options: MenuOption[]): MenuOption | null {
@@ -353,6 +369,7 @@ export function handleGuidedMessage(params: {
   const menuOptions = parseMenuOptions(settings.welcomeMenuOptions);
   const flowData = parseFlowData(customer.flowData);
   const currentState = customer.flowState as ConversationFlowState | null;
+  const normalizedText = normalize(text);
 
   if (detectGreetingWithCustomKeywords(text, settings.greetingKeywords)) {
     return replyResult(
@@ -363,8 +380,21 @@ export function handleGuidedMessage(params: {
     );
   }
 
+  if (normalizedText === "cancel") {
+    return replyResult("Okay, cancelled. Type 'hi' any time to start again.", "none", null, null);
+  }
+
+  if (normalizedText === "menu") {
+    return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+  }
+
+  const directMenuSelection = findMenuSelection(text, menuOptions);
+  if (directMenuSelection) {
+    return handleMenuAction(directMenuSelection.action, settings, services);
+  }
+
   if (currentState === "awaiting_menu_option") {
-    const selection = findMenuSelection(text, menuOptions);
+    const selection = directMenuSelection;
     if (!selection) {
       return null;
     }
@@ -372,18 +402,41 @@ export function handleGuidedMessage(params: {
   }
 
   if (!currentState) {
-    const directSelection = findMenuSelection(text, menuOptions);
-    if (directSelection) {
-      return handleMenuAction(directSelection.action, settings, services);
-    }
     return null;
+  }
+
+  if (normalizedText === "back") {
+    if (currentState === "awaiting_service_category") {
+      return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+    }
+    if (currentState === "awaiting_booking_category") {
+      return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+    }
+    if (currentState === "awaiting_booking_service") {
+      if (flowData.selectedCategory) {
+        const categories = listCategories(services);
+        return replyResult(buildCategoryPrompt("Choose a booking category:", categories), "booking", "awaiting_booking_category", { intent: "booking" });
+      }
+      return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+    }
+    if (currentState === "awaiting_booking_date") {
+      const filtered = filterServicesByCategory(services, flowData.selectedCategory);
+      return replyResult(buildServiceSelectionPrompt(filtered), "booking", "awaiting_booking_service", resetInvalidCount(flowData));
+    }
+    if (currentState === "awaiting_booking_time") {
+      return replyResult("Please send your preferred date.", "booking", "awaiting_booking_date", resetInvalidCount(flowData));
+    }
+    if (currentState === "awaiting_booking_name") {
+      return replyResult("Please send your preferred time.", "booking", "awaiting_booking_time", resetInvalidCount(flowData));
+    }
   }
 
   if (currentState === "awaiting_service_category") {
     const categories = listCategories(services);
     const category = findCategorySelection(text, categories);
     if (!category) {
-      return replyResult(buildCategoryPrompt("Choose a service category:", categories), "service", currentState, { intent: "services" });
+      const nextData = incrementInvalidCount({ ...flowData, intent: "services" });
+      return replyResult(withRetryGuard(buildCategoryPrompt("Choose a service category:", categories), nextData), "service", currentState, nextData);
     }
     const filtered = filterServicesByCategory(services, category);
     return replyResult(buildServicesReply(filtered, settings.currency, category), "service", null, null);
@@ -393,14 +446,15 @@ export function handleGuidedMessage(params: {
     const categories = listCategories(services);
     const category = findCategorySelection(text, categories);
     if (!category) {
-      return replyResult(buildCategoryPrompt("Choose a booking category:", categories), "booking", currentState, { intent: "booking" });
+      const nextData = incrementInvalidCount({ ...flowData, intent: "booking" });
+      return replyResult(withRetryGuard(buildCategoryPrompt("Choose a booking category:", categories), nextData), "booking", currentState, nextData);
     }
     const filtered = filterServicesByCategory(services, category);
     return replyResult(
       buildServiceSelectionPrompt(filtered),
       "booking",
       "awaiting_booking_service",
-      { ...flowData, intent: "booking", selectedCategory: category },
+      resetInvalidCount({ ...flowData, intent: "booking", selectedCategory: category }),
     );
   }
 
@@ -408,18 +462,19 @@ export function handleGuidedMessage(params: {
     const filtered = filterServicesByCategory(services, flowData.selectedCategory);
     const selectedService = findServiceSelection(text, filtered);
     if (!selectedService) {
+      const nextData = incrementInvalidCount(flowData);
       return replyResult(
-        buildServiceSelectionPrompt(filtered),
+        withRetryGuard(buildServiceSelectionPrompt(filtered), nextData),
         "booking",
         currentState,
-        flowData,
+        nextData,
       );
     }
     return replyResult(
       `Great choice. Please send your preferred date for ${selectedService.name}.`,
       "booking",
       "awaiting_booking_date",
-      { ...flowData, selectedService: selectedService.name },
+      resetInvalidCount({ ...flowData, selectedService: selectedService.name }),
     );
   }
 
@@ -428,7 +483,7 @@ export function handleGuidedMessage(params: {
       "Please send your preferred time.",
       "booking",
       "awaiting_booking_time",
-      { ...flowData, requestedDate: text.trim() },
+      resetInvalidCount({ ...flowData, requestedDate: text.trim() }),
     );
   }
 
@@ -437,7 +492,7 @@ export function handleGuidedMessage(params: {
       "Please send your name.",
       "booking",
       "awaiting_booking_name",
-      { ...flowData, requestedDate: flowData.requestedDate, requestedTime: text.trim() },
+      resetInvalidCount({ ...flowData, requestedDate: flowData.requestedDate, requestedTime: text.trim() }),
     );
   }
 

@@ -72070,6 +72070,9 @@ function scoreKeywords(message, keywords) {
   return score;
 }
 function matchFaq(message, faqs) {
+  return matchFaqWithScore(message, faqs).faq;
+}
+function matchFaqWithScore(message, faqs) {
   const active = faqs.filter((f) => f.active);
   let bestFaq = null;
   let bestScore = 0;
@@ -72080,7 +72083,7 @@ function matchFaq(message, faqs) {
       bestFaq = faq;
     }
   }
-  return bestScore >= 1 ? bestFaq : null;
+  return { faq: bestScore >= 1 ? bestFaq : null, score: bestScore };
 }
 function matchService(message, services) {
   const active = services.filter((s) => s.active);
@@ -72279,6 +72282,20 @@ function serializeFlowData(data) {
   if (!data || Object.keys(data).length === 0) return null;
   return JSON.stringify(data);
 }
+function resetInvalidCount(data) {
+  const next = { ...data };
+  delete next.invalidCount;
+  return next;
+}
+function incrementInvalidCount(data) {
+  return { ...data, invalidCount: (data.invalidCount ?? 0) + 1 };
+}
+function withRetryGuard(message, data) {
+  if ((data.invalidCount ?? 0) < 2) return message;
+  return `${message}
+
+I didn't get that. Reply with category number (1-5) or type 'menu' to go back.`;
+}
 function findMenuSelection(text2, options) {
   const trimmed = text2.trim();
   const num = Number(trimmed);
@@ -72429,6 +72446,7 @@ function handleGuidedMessage(params) {
   const menuOptions = parseMenuOptions(settings.welcomeMenuOptions);
   const flowData = parseFlowData(customer.flowData);
   const currentState = customer.flowState;
+  const normalizedText = normalize(text2);
   if (detectGreetingWithCustomKeywords(text2, settings.greetingKeywords)) {
     return replyResult(
       buildGreetingReply(settings, fallbackBusinessName),
@@ -72437,25 +72455,57 @@ function handleGuidedMessage(params) {
       {}
     );
   }
+  if (normalizedText === "cancel") {
+    return replyResult("Okay, cancelled. Type 'hi' any time to start again.", "none", null, null);
+  }
+  if (normalizedText === "menu") {
+    return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+  }
+  const directMenuSelection = findMenuSelection(text2, menuOptions);
+  if (directMenuSelection) {
+    return handleMenuAction(directMenuSelection.action, settings, services);
+  }
   if (currentState === "awaiting_menu_option") {
-    const selection = findMenuSelection(text2, menuOptions);
+    const selection = directMenuSelection;
     if (!selection) {
       return null;
     }
     return handleMenuAction(selection.action, settings, services);
   }
   if (!currentState) {
-    const directSelection = findMenuSelection(text2, menuOptions);
-    if (directSelection) {
-      return handleMenuAction(directSelection.action, settings, services);
-    }
     return null;
+  }
+  if (normalizedText === "back") {
+    if (currentState === "awaiting_service_category") {
+      return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+    }
+    if (currentState === "awaiting_booking_category") {
+      return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+    }
+    if (currentState === "awaiting_booking_service") {
+      if (flowData.selectedCategory) {
+        const categories = listCategories(services);
+        return replyResult(buildCategoryPrompt("Choose a booking category:", categories), "booking", "awaiting_booking_category", { intent: "booking" });
+      }
+      return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+    }
+    if (currentState === "awaiting_booking_date") {
+      const filtered = filterServicesByCategory(services, flowData.selectedCategory);
+      return replyResult(buildServiceSelectionPrompt(filtered), "booking", "awaiting_booking_service", resetInvalidCount(flowData));
+    }
+    if (currentState === "awaiting_booking_time") {
+      return replyResult("Please send your preferred date.", "booking", "awaiting_booking_date", resetInvalidCount(flowData));
+    }
+    if (currentState === "awaiting_booking_name") {
+      return replyResult("Please send your preferred time.", "booking", "awaiting_booking_time", resetInvalidCount(flowData));
+    }
   }
   if (currentState === "awaiting_service_category") {
     const categories = listCategories(services);
     const category = findCategorySelection(text2, categories);
     if (!category) {
-      return replyResult(buildCategoryPrompt("Choose a service category:", categories), "service", currentState, { intent: "services" });
+      const nextData = incrementInvalidCount({ ...flowData, intent: "services" });
+      return replyResult(withRetryGuard(buildCategoryPrompt("Choose a service category:", categories), nextData), "service", currentState, nextData);
     }
     const filtered = filterServicesByCategory(services, category);
     return replyResult(buildServicesReply(filtered, settings.currency, category), "service", null, null);
@@ -72464,32 +72514,34 @@ function handleGuidedMessage(params) {
     const categories = listCategories(services);
     const category = findCategorySelection(text2, categories);
     if (!category) {
-      return replyResult(buildCategoryPrompt("Choose a booking category:", categories), "booking", currentState, { intent: "booking" });
+      const nextData = incrementInvalidCount({ ...flowData, intent: "booking" });
+      return replyResult(withRetryGuard(buildCategoryPrompt("Choose a booking category:", categories), nextData), "booking", currentState, nextData);
     }
     const filtered = filterServicesByCategory(services, category);
     return replyResult(
       buildServiceSelectionPrompt(filtered),
       "booking",
       "awaiting_booking_service",
-      { ...flowData, intent: "booking", selectedCategory: category }
+      resetInvalidCount({ ...flowData, intent: "booking", selectedCategory: category })
     );
   }
   if (currentState === "awaiting_booking_service") {
     const filtered = filterServicesByCategory(services, flowData.selectedCategory);
     const selectedService = findServiceSelection(text2, filtered);
     if (!selectedService) {
+      const nextData = incrementInvalidCount(flowData);
       return replyResult(
-        buildServiceSelectionPrompt(filtered),
+        withRetryGuard(buildServiceSelectionPrompt(filtered), nextData),
         "booking",
         currentState,
-        flowData
+        nextData
       );
     }
     return replyResult(
       `Great choice. Please send your preferred date for ${selectedService.name}.`,
       "booking",
       "awaiting_booking_date",
-      { ...flowData, selectedService: selectedService.name }
+      resetInvalidCount({ ...flowData, selectedService: selectedService.name })
     );
   }
   if (currentState === "awaiting_booking_date") {
@@ -72497,7 +72549,7 @@ function handleGuidedMessage(params) {
       "Please send your preferred time.",
       "booking",
       "awaiting_booking_time",
-      { ...flowData, requestedDate: text2.trim() }
+      resetInvalidCount({ ...flowData, requestedDate: text2.trim() })
     );
   }
   if (currentState === "awaiting_booking_time") {
@@ -72505,7 +72557,7 @@ function handleGuidedMessage(params) {
       "Please send your name.",
       "booking",
       "awaiting_booking_name",
-      { ...flowData, requestedDate: flowData.requestedDate, requestedTime: text2.trim() }
+      resetInvalidCount({ ...flowData, requestedDate: flowData.requestedDate, requestedTime: text2.trim() })
     );
   }
   if (currentState === "awaiting_booking_name") {
@@ -72671,6 +72723,7 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
   const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
   const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
   const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
+  const faqs = await db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
   await logMessage(customer.id, businessId, "inbound", text2, "none");
   const ratingValue = detectRatingReply(text2);
   if (ratingValue !== null) {
@@ -72723,6 +72776,19 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
     logger.info({ phone, businessId, flowState: guided.flowState }, "Guided menu flow handled message");
     return;
   }
+  if (customer.flowState) {
+    const strongFaq = matchFaqWithScore(text2, faqs);
+    if (strongFaq.faq && strongFaq.score >= 2) {
+      const reply = `${strongFaq.faq.answer}
+
+You can continue your previous step, or type 'menu' to go back.`;
+      const result2 = await sendWhatsAppMessage(phone, reply, creds);
+      if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+      await logMessage(customer.id, businessId, "outbound", reply, "faq");
+      logger.info({ phone, businessId, faqId: strongFaq.faq.id, flowState: customer.flowState }, "Strong FAQ interruption handled during guided flow");
+      return;
+    }
+  }
   if (detectGreetingWithCustomKeywords(text2, settings?.greetingKeywords)) {
     const reply = getGreetingReply(settings, business.name);
     const result2 = await sendWhatsAppMessage(phone, reply, creds);
@@ -72731,7 +72797,6 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
     logger.info({ phone, businessId }, "Greeting detected \u2014 no AI call");
     return;
   }
-  const faqs = await db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
   const matchedFaq = matchFaq(text2, faqs);
   if (matchedFaq) {
     await db.update(faqsTable).set({ hitCount: matchedFaq.hitCount + 1 }).where(eq(faqsTable.id, matchedFaq.id));
@@ -72806,6 +72871,12 @@ router2.get("/webhook", async (req, res) => {
 });
 router2.post("/webhook", async (req, res) => {
   const appSecret = process.env["WHATSAPP_APP_SECRET"];
+  const requireSignature = process.env["WHATSAPP_REQUIRE_SIGNATURE"] === "false" ? false : process.env["NODE_ENV"] === "production";
+  if (requireSignature && !appSecret) {
+    logger.error("WHATSAPP_APP_SECRET is missing while webhook signature is required");
+    res.sendStatus(503);
+    return;
+  }
   if (appSecret) {
     const rawBody = req.rawBody;
     const signature = req.header("x-hub-signature-256");
@@ -74224,6 +74295,7 @@ router13.post("/simulate", async (req, res) => {
     const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
     const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
     const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
+    const faqs = await db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
     const guided = handleGuidedMessage({
       text: message,
       customer,
@@ -74259,7 +74331,23 @@ router13.post("/simulate", async (req, res) => {
       }));
       return;
     }
-    const faqs = await db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
+    if (customer.flowState) {
+      const strongFaq = matchFaqWithScore(message, faqs);
+      if (strongFaq.faq && strongFaq.score >= 2) {
+        res.json(SimulateMessageResponse.parse({
+          replyType: "faq",
+          response: `${strongFaq.faq.answer}
+
+You can continue your previous step, or type 'menu' to go back.`,
+          matchedFaqId: strongFaq.faq.id,
+          matchedFaqQuestion: strongFaq.faq.question,
+          matchedServiceId: null,
+          matchedServiceName: null,
+          aiTokensUsed: null
+        }));
+        return;
+      }
+    }
     const matchedFaq = matchFaq(message, faqs);
     if (matchedFaq) {
       res.json(SimulateMessageResponse.parse({
@@ -74605,13 +74693,50 @@ router16.post("/delivery-failures/dismiss-all", async (req, res) => {
 });
 var delivery_failures_default = router16;
 
+// src/lib/rate-limit.ts
+var buckets = /* @__PURE__ */ new Map();
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.trim()) {
+    return fwd.split(",")[0].trim();
+  }
+  return req.ip || "unknown";
+}
+function createRateLimit(options) {
+  const { windowMs, max, scope = "ip" } = options;
+  return (req, res, next) => {
+    const now = Date.now();
+    const scopedKey = scope === "user_or_ip" && req.authUser?.id ? `user:${req.authUser.id}` : `ip:${getClientIp(req)}`;
+    const key = `${scopedKey}:${req.path}`;
+    const existing = buckets.get(key);
+    if (!existing || now >= existing.resetAt) {
+      buckets.set(key, { hits: 1, resetAt: now + windowMs });
+      next();
+      return;
+    }
+    existing.hits += 1;
+    if (existing.hits > max) {
+      const retryAfterSec = Math.max(1, Math.ceil((existing.resetAt - now) / 1e3));
+      res.setHeader("Retry-After", String(retryAfterSec));
+      res.status(429).json({ error: "Too many requests. Please try again shortly." });
+      return;
+    }
+    next();
+  };
+}
+
 // src/routes/index.ts
 var router17 = (0, import_express17.Router)();
 var protectedRouter = (0, import_express17.Router)();
+var authRateLimit = createRateLimit({ windowMs: 6e4, max: 30, scope: "ip" });
+var webhookRateLimit = createRateLimit({ windowMs: 6e4, max: 120, scope: "ip" });
+var protectedRateLimit = createRateLimit({ windowMs: 6e4, max: 180, scope: "user_or_ip" });
+var simulateRateLimit = createRateLimit({ windowMs: 6e4, max: 60, scope: "user_or_ip" });
 router17.use(health_default);
-router17.use(webhook_default);
-router17.use(auth_default);
+router17.use(webhookRateLimit, webhook_default);
+router17.use(authRateLimit, auth_default);
 protectedRouter.use(ensureAuth);
+protectedRouter.use(protectedRateLimit);
 protectedRouter.use(businesses_default);
 protectedRouter.use(faqs_default);
 protectedRouter.use(services_default);
@@ -74621,7 +74746,7 @@ protectedRouter.use(messages_default);
 protectedRouter.use(dashboard_default);
 protectedRouter.use(ai_usage_default);
 protectedRouter.use(settings_default);
-protectedRouter.use(simulate_default);
+protectedRouter.use(simulateRateLimit, simulate_default);
 protectedRouter.use(seed_default);
 protectedRouter.use(canned_responses_default);
 protectedRouter.use(delivery_failures_default);
@@ -74630,6 +74755,14 @@ var routes_default = router17;
 
 // src/app.ts
 var app = (0, import_express18.default)();
+function getAllowedOrigins() {
+  const raw = process.env["CORS_ORIGINS"]?.trim();
+  if (raw) {
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  const appOrigin = process.env["APP_ORIGIN"]?.trim();
+  return appOrigin ? [appOrigin] : [];
+}
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -74649,7 +74782,23 @@ app.use(
     }
   })
 );
-app.use((0, import_cors.default)());
+var allowedOrigins = getAllowedOrigins();
+app.use(
+  (0, import_cors.default)({
+    origin(origin, cb) {
+      if (!origin) {
+        cb(null, true);
+        return;
+      }
+      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        cb(null, true);
+        return;
+      }
+      cb(null, false);
+    },
+    credentials: true
+  })
+);
 app.use((0, import_cookie_parser.default)());
 app.use(
   import_express18.default.json({

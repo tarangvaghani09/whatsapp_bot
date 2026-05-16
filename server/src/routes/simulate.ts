@@ -2,7 +2,7 @@
 import { db, bookingsTable, customersTable, faqsTable, servicesTable, settingsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { matchFaq, matchService, detectBookingIntent, formatServiceReply } from "../lib/faq-matcher";
+import { matchFaq, matchFaqWithScore, matchService, detectBookingIntent, formatServiceReply } from "../lib/faq-matcher";
 import { handleGuidedMessage } from "../lib/guided-menu";
 import { SimulateMessageBody, SimulateMessageResponse } from "@workspace/api-zod";
 import { BusinessIdQueryParam, resolveBusinessId } from "../lib/resolve-business";
@@ -132,6 +132,8 @@ router.post("/simulate", async (req, res): Promise<void> => {
     const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
     const services = await db.select().from(servicesTable)
       .where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
+    const faqs = await db.select().from(faqsTable)
+      .where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
 
     const guided = handleGuidedMessage({
       text: message,
@@ -172,8 +174,21 @@ router.post("/simulate", async (req, res): Promise<void> => {
       return;
     }
 
-    const faqs = await db.select().from(faqsTable)
-      .where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
+    if (customer.flowState) {
+      const strongFaq = matchFaqWithScore(message, faqs);
+      if (strongFaq.faq && strongFaq.score >= 2) {
+        res.json(SimulateMessageResponse.parse({
+          replyType: "faq",
+          response: `${strongFaq.faq.answer}\n\nYou can continue your previous step, or type 'menu' to go back.`,
+          matchedFaqId: strongFaq.faq.id,
+          matchedFaqQuestion: strongFaq.faq.question,
+          matchedServiceId: null,
+          matchedServiceName: null,
+          aiTokensUsed: null,
+        }));
+        return;
+      }
+    }
     const matchedFaq = matchFaq(message, faqs);
     if (matchedFaq) {
       res.json(SimulateMessageResponse.parse({

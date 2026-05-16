@@ -2,7 +2,7 @@ import { db, customersTable, botMessagesTable, faqsTable, servicesTable, booking
 import { eq, and, desc, isNotNull, isNull } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { sendWhatsAppMessage, type BusinessCreds, type SendResult } from "./whatsapp";
-import { matchFaq, matchService, detectBookingIntent, formatServiceReply, detectGreetingWithCustomKeywords } from "./faq-matcher";
+import { matchFaq, matchFaqWithScore, matchService, detectBookingIntent, formatServiceReply, detectGreetingWithCustomKeywords } from "./faq-matcher";
 import { logger } from "./logger";
 import { decryptSecret } from "./secrets";
 import { handleGuidedMessage } from "./guided-menu";
@@ -200,6 +200,8 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
   const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
   const services = await db.select().from(servicesTable)
     .where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
+  const faqs = await db.select().from(faqsTable)
+    .where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
 
   await logMessage(customer.id, businessId, "inbound", text, "none");
 
@@ -271,6 +273,18 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
     return;
   }
 
+  if (customer.flowState) {
+    const strongFaq = matchFaqWithScore(text, faqs);
+    if (strongFaq.faq && strongFaq.score >= 2) {
+      const reply = `${strongFaq.faq.answer}\n\nYou can continue your previous step, or type 'menu' to go back.`;
+      const result = await sendWhatsAppMessage(phone, reply, creds);
+      if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+      await logMessage(customer.id, businessId, "outbound", reply, "faq");
+      logger.info({ phone, businessId, faqId: strongFaq.faq.id, flowState: customer.flowState }, "Strong FAQ interruption handled during guided flow");
+      return;
+    }
+  }
+
   // ── Greeting ──────────────────────────────────────────────────────────────
   if (detectGreetingWithCustomKeywords(text, settings?.greetingKeywords)) {
     const reply = getGreetingReply(settings, business.name);
@@ -282,8 +296,6 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
   }
 
   // ── FAQ match ─────────────────────────────────────────────────────────────
-  const faqs = await db.select().from(faqsTable)
-    .where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
   const matchedFaq = matchFaq(text, faqs);
 
   if (matchedFaq) {

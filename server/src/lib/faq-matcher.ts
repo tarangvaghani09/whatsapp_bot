@@ -19,6 +19,10 @@ function scoreKeywords(message: string, keywords: string[]): number {
 }
 
 export function matchFaq(message: string, faqs: Faq[]): Faq | null {
+  return matchFaqWithScore(message, faqs).faq;
+}
+
+export function matchFaqWithScore(message: string, faqs: Faq[]): { faq: Faq | null; score: number } {
   const active = faqs.filter((f) => f.active);
   let bestFaq: Faq | null = null;
   let bestScore = 0;
@@ -31,7 +35,7 @@ export function matchFaq(message: string, faqs: Faq[]): Faq | null {
     }
   }
 
-  return bestScore >= 1 ? bestFaq : null;
+  return { faq: bestScore >= 1 ? bestFaq : null, score: bestScore };
 }
 
 export function matchService(message: string, services: Service[]): Service | null {
