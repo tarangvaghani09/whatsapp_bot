@@ -104,15 +104,15 @@ export default function AuthPage({ onAuthed }: Props) {
             <div className="absolute right-12 top-20 h-72 w-72 rounded-full bg-white/10" />
             <div className="relative z-10 flex h-full flex-col justify-between">
               <div>
-                <div className="inline-flex items-center gap-3 rounded-full border border-white/25 bg-white/15 px-5 py-2.5 text-sm font-bold shadow-lg backdrop-blur-md">
+                <div className="inline-flex items-center gap-3 rounded-full border border-white/25 bg-white/15 px-5 py-2.5 text-xs font-extrabold tracking-[0.06em] shadow-lg backdrop-blur-md">
                   <Bot size={19} />
                   WhatsApp Bot Admin
                 </div>
                 <div className="mt-9 max-w-[26rem]">
-                  <h1 className="text-[3rem] font-black leading-[1.08] tracking-tight">
+                  <h1 className="text-[3rem] font-black leading-[1.04] tracking-[-0.02em] text-white [text-wrap:balance]">
                     Manage your smart bot from one clean dashboard.
                   </h1>
-                  <p className="mt-4 max-w-md text-[1.02rem] leading-7 text-white/85">
+                  <p className="mt-4 max-w-md text-[1.02rem] font-medium leading-7 text-indigo-100/95">
                     Login securely, manage bookings, automate replies, track customers, and monitor bot performance in real time.
                   </p>
                 </div>
@@ -121,13 +121,13 @@ export default function AuthPage({ onAuthed }: Props) {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-3xl border border-white/20 bg-white/15 p-4.5 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
                     <MessageCircle size={26} />
-                    <h3 className="mt-3 text-3xl font-black leading-none">24/7</h3>
-                    <p className="mt-1 text-sm text-white/75">Auto replies</p>
+                    <h3 className="mt-3 text-3xl font-black leading-none tracking-tight">24/7</h3>
+                    <p className="mt-1 text-sm font-medium text-indigo-100/90">Auto replies</p>
                   </div>
                   <div className="rounded-3xl border border-white/20 bg-white/15 p-4.5 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
                     <BarChart3 size={26} />
-                    <h3 className="mt-3 text-3xl font-black leading-none">Live</h3>
-                    <p className="mt-1 text-sm text-white/75">Analytics</p>
+                    <h3 className="mt-3 text-3xl font-black leading-none tracking-tight">Live</h3>
+                    <p className="mt-1 text-sm font-medium text-indigo-100/90">Analytics</p>
                   </div>
                 </div>
                 <div className="mb-4 rounded-3xl border border-white/20 bg-white/15 p-4 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
@@ -136,8 +136,8 @@ export default function AuthPage({ onAuthed }: Props) {
                       <ShieldCheck size={22} />
                     </div>
                     <div>
-                      <h4 className="font-black">Secure admin access</h4>
-                      <p className="mt-1 text-sm text-white/75">Protected dashboard for your business bot.</p>
+                      <h4 className="font-extrabold tracking-tight">Secure admin access</h4>
+                      <p className="mt-1 text-sm font-medium text-indigo-100/90">Protected dashboard for your business bot.</p>
                     </div>
                   </div>
                 </div>
@@ -151,12 +151,12 @@ export default function AuthPage({ onAuthed }: Props) {
                 <div className="mb-5 flex h-[54px] w-[54px] items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-xl shadow-violet-500/20">
                   <Bot size={24} />
                 </div>
-                <h2 className="text-[2.2rem] font-black leading-[1.08] tracking-tight text-slate-950 sm:text-[3.1rem] sm:leading-[1.05]">
+                <h2 className="text-[2rem] font-black leading-[1.08] tracking-tight text-slate-950 sm:text-[2.7rem] sm:leading-[1.05]">
                   {mode === "login" && "Welcome back"}
                   {mode === "forgot" && "Reset password"}
                   {mode === "reset" && "Set new password"}
                 </h2>
-                <p className="mt-2.5 text-[1.05rem] font-medium text-slate-500">
+                <p className="mt-2.5 text-[0.98rem] font-medium text-slate-500">
                   {mode === "login" && "Login to continue to your WhatsApp bot admin panel."}
                   {mode === "forgot" && "Enter your email address and receive a secure reset link."}
                   {mode === "reset" && "Set a new secure password for your admin account."}
@@ -166,14 +166,14 @@ export default function AuthPage({ onAuthed }: Props) {
               <div className="space-y-4.5">
                 {(mode === "login" || mode === "forgot") && (
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-900">Email address</label>
+                    <label className="mb-2 block text-[0.92rem] font-bold text-slate-900">Email address</label>
                     <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                       <Mail size={18} className="text-slate-400" />
                       <input
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+                        className="w-full bg-transparent text-[0.92rem] font-medium text-slate-900 outline-none placeholder:text-slate-400"
                         placeholder="Enter email"
                       />
                     </div>
@@ -183,12 +183,12 @@ export default function AuthPage({ onAuthed }: Props) {
                 {mode === "login" && (
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <label className="block text-sm font-bold text-slate-900">Password</label>
+                      <label className="block text-[0.92rem] font-bold text-slate-900">Password</label>
                       {mode === "login" && (
                         <button
                           type="button"
                           onClick={() => setLocation("/forgot-password")}
-                          className="text-sm font-bold text-blue-600 hover:text-violet-600"
+                          className="text-[0.9rem] font-bold text-blue-600 hover:text-violet-600"
                         >
                           Forgot password?
                         </button>
@@ -200,7 +200,7 @@ export default function AuthPage({ onAuthed }: Props) {
                         type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+                        className="w-full bg-transparent text-[0.92rem] font-medium text-slate-900 outline-none placeholder:text-slate-400"
                         placeholder="Enter password"
                       />
                     </div>
@@ -210,39 +210,39 @@ export default function AuthPage({ onAuthed }: Props) {
                 {mode === "reset" && (
                   <>
                     <div>
-                      <label className="mb-2 block text-sm font-bold text-slate-900">Reset token</label>
+                      <label className="mb-2 block text-[0.92rem] font-bold text-slate-900">Reset token</label>
                       <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                         <KeyRound size={18} className="text-slate-400" />
                         <input
                           value={token}
                           onChange={(e) => setToken(e.target.value)}
-                          className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+                          className="w-full bg-transparent text-[0.92rem] font-medium text-slate-900 outline-none placeholder:text-slate-400"
                           placeholder="Paste token"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-bold text-slate-900">New password</label>
+                      <label className="mb-2 block text-[0.92rem] font-bold text-slate-900">New password</label>
                       <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                         <LockKeyhole size={18} className="text-slate-400" />
                         <input
                           type="password"
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+                          className="w-full bg-transparent text-[0.92rem] font-medium text-slate-900 outline-none placeholder:text-slate-400"
                           placeholder="min 6 characters"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-bold text-slate-900">Confirm password</label>
+                      <label className="mb-2 block text-[0.92rem] font-bold text-slate-900">Confirm password</label>
                       <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                         <LockKeyhole size={18} className="text-slate-400" />
                         <input
                           type="password"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+                          className="w-full bg-transparent text-[0.92rem] font-medium text-slate-900 outline-none placeholder:text-slate-400"
                           placeholder="re-enter new password"
                         />
                       </div>
@@ -261,7 +261,7 @@ export default function AuthPage({ onAuthed }: Props) {
                   <button
                     disabled={busy}
                     onClick={submitLogin}
-                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-[1.45rem] font-black text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14 sm:text-[1.85rem]"
+                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-[1.3rem] font-black text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14 sm:text-[1.55rem]"
                   >
                     <LogIn size={19} />
                     Login
@@ -271,7 +271,7 @@ export default function AuthPage({ onAuthed }: Props) {
                   <button
                     disabled={busy}
                     onClick={submitForgot}
-                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-base font-black text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14"
+                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-[0.98rem] font-black text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14"
                   >
                     <KeyRound size={19} />
                     Send Reset Link
@@ -281,7 +281,7 @@ export default function AuthPage({ onAuthed }: Props) {
                   <button
                     disabled={busy}
                     onClick={submitReset}
-                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 text-base font-black text-white shadow-[0_14px_30px_rgba(5,150,105,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14"
+                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 text-[0.98rem] font-black text-white shadow-[0_14px_30px_rgba(5,150,105,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14"
                   >
                     <ShieldCheck size={19} />
                     Reset Password
@@ -296,7 +296,7 @@ export default function AuthPage({ onAuthed }: Props) {
                     Back to Login
                   </button>
                 )}
-                <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/80 px-4 py-3.5 text-sm font-medium leading-6 text-blue-800">
+                <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/80 px-4 py-3.5 text-[0.92rem] font-medium leading-6 text-blue-800">
                   <div className="flex gap-3">
                     <Sparkles size={20} className="mt-0.5 shrink-0" />
                     <p>
