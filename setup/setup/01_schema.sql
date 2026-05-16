@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS customers (
   business_id INTEGER NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   phone       TEXT NOT NULL,
   name        TEXT,
+  tags        TEXT[] NOT NULL DEFAULT '{}',
+  flow_state  TEXT,
+  flow_data   TEXT,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT customers_business_phone_uniq UNIQUE (business_id, phone)
@@ -113,7 +116,14 @@ CREATE TABLE IF NOT EXISTS settings (
   website        TEXT,
   opening_hours  TEXT,
   description    TEXT,
+  no_match_message TEXT,
+  ai_fallback_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  welcome_menu_message TEXT,
+  welcome_menu_options TEXT,
+  payment_methods TEXT,
+  staff_contact_message TEXT,
   currency       TEXT NOT NULL DEFAULT 'USD',
+  custom_ai_prompt TEXT,
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

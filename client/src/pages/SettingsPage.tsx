@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Building2, Clock, Phone, Mail, MapPin, Globe, DollarSign, FileText, Bot, RotateCcw } from "lucide-react";
+import { Save, Building2, Clock, Phone, Mail, MapPin, Globe, DollarSign, FileText, Bot, RotateCcw, Sparkles, Info } from "lucide-react";
 import { useBusinessId } from "@/context/BusinessContext";
 
 const BUSINESS_TYPES = [
@@ -39,6 +40,18 @@ Keep replies short and friendly (under 100 words).
 If you don't know something, politely suggest the customer contact us directly.
 Do not answer questions unrelated to our business.`;
 
+function stripLegacyAiMarkers(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .split(/\r?\n/)
+    .filter((line) => {
+      const t = line.trim().toLowerCase();
+      return t !== "#ai:on" && t !== "#ai:off";
+    })
+    .join("\n")
+    .trim();
+}
+
 type Form = {
   businessName: string;
   businessType: string;
@@ -48,6 +61,13 @@ type Form = {
   website: string;
   openingHours: string;
   description: string;
+  noMatchMessage: string;
+  aiFallbackEnabled: boolean;
+  welcomeMenuMessage: string;
+  welcomeMenuOptions: string;
+  greetingKeywords: string;
+  paymentMethods: string;
+  staffContactMessage: string;
   currency: string;
   customAiPrompt: string;
 };
@@ -61,6 +81,13 @@ const EMPTY: Form = {
   website: "",
   openingHours: "",
   description: "",
+  noMatchMessage: "",
+  aiFallbackEnabled: true,
+  welcomeMenuMessage: "",
+  welcomeMenuOptions: "",
+  greetingKeywords: "",
+  paymentMethods: "",
+  staffContactMessage: "",
   currency: "USD",
   customAiPrompt: "",
 };
@@ -86,14 +113,21 @@ export default function SettingsPage() {
         website: settings.website ?? "",
         openingHours: settings.openingHours ?? "",
         description: settings.description ?? "",
+        noMatchMessage: settings.noMatchMessage ?? "",
+        aiFallbackEnabled: settings.aiFallbackEnabled ?? true,
+        welcomeMenuMessage: settings.welcomeMenuMessage ?? "",
+        welcomeMenuOptions: settings.welcomeMenuOptions ?? "",
+        greetingKeywords: settings.greetingKeywords ?? "",
+        paymentMethods: settings.paymentMethods ?? "",
+        staffContactMessage: settings.staffContactMessage ?? "",
         currency: settings.currency ?? "USD",
-        customAiPrompt: settings.customAiPrompt ?? "",
+        customAiPrompt: stripLegacyAiMarkers(settings.customAiPrompt),
       });
       setDirty(false);
     }
   }, [settings]);
 
-  function set(field: keyof Form, value: string) {
+  function set<K extends keyof Form>(field: K, value: Form[K]) {
     setForm((f) => ({ ...f, [field]: value }));
     setDirty(true);
   }
@@ -110,8 +144,15 @@ export default function SettingsPage() {
           website: form.website || undefined,
           openingHours: form.openingHours || undefined,
           description: form.description || undefined,
+          noMatchMessage: form.noMatchMessage || undefined,
+          aiFallbackEnabled: form.aiFallbackEnabled,
+          welcomeMenuMessage: form.welcomeMenuMessage || undefined,
+          welcomeMenuOptions: form.welcomeMenuOptions || undefined,
+          greetingKeywords: form.greetingKeywords || undefined,
+          paymentMethods: form.paymentMethods || undefined,
+          staffContactMessage: form.staffContactMessage || undefined,
           currency: form.currency || undefined,
-          customAiPrompt: form.customAiPrompt || undefined,
+          customAiPrompt: stripLegacyAiMarkers(form.customAiPrompt) || undefined,
         },
         params: { businessId },
       },
@@ -193,6 +234,30 @@ export default function SettingsPage() {
               </Select>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* No Match Message */}
+      <Card className="overflow-hidden">
+        <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-slate-100 px-6 py-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-slate-600 flex items-center justify-center shadow-sm">
+            <Info className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">No Match Message</p>
+            <p className="text-xs text-gray-500">Used when FAQ/Service/Booking do not match and AI fallback is disabled/unavailable</p>
+          </div>
+        </div>
+        <CardContent className="pt-5">
+          <Textarea
+            id="noMatchMessage"
+            value={form.noMatchMessage}
+            onChange={(e) => set("noMatchMessage", e.target.value)}
+            placeholder="I couldn't find an exact match. Please contact us and we'll help you right away."
+            rows={3}
+            className="resize-none text-sm"
+          />
+          <p className="text-xs text-gray-400 mt-2">Leave empty to use default system fallback message.</p>
         </CardContent>
       </Card>
 
@@ -278,6 +343,78 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Welcome Menu Message */}
+      <Card className="overflow-hidden">
+        <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-b border-emerald-100 px-6 py-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
+            <Bot className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Welcome Menu Message</p>
+            <p className="text-xs text-gray-500">Business-wise greeting shown on hi/hello</p>
+          </div>
+        </div>
+        <CardContent className="pt-5">
+          <Textarea
+            id="welcomeMenuMessage"
+            value={form.welcomeMenuMessage}
+            onChange={(e) => set("welcomeMenuMessage", e.target.value)}
+            placeholder={"👋 Hello! Welcome to *{businessName}*.\nWe're happy to help you! You can ask us about:\n• Opening hours\n• Location & directions\n• Services & pricing\n• Booking an appointment\n• Payment methods\n\nWe're open: {openingHours}\nAddress: {address}"}
+            rows={7}
+            className="resize-none text-sm"
+          />
+          <p className="text-xs text-gray-400 mt-2">Supports placeholders: {"{businessName}"}, {"{openingHours}"}, {"{address}"}. Leave empty to use default generated welcome.</p>
+          <div className="mt-4 space-y-4">
+            <div>
+              <Label htmlFor="welcomeMenuOptions">Welcome Menu Options</Label>
+              <Textarea
+                id="welcomeMenuOptions"
+                value={form.welcomeMenuOptions}
+                onChange={(e) => set("welcomeMenuOptions", e.target.value)}
+                placeholder={"Services & Price|services\nBook Appointment|booking\nSalon Timing|hours\nLocation|location\nTalk to Staff|staff"}
+                rows={5}
+                className="mt-1 resize-none text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-2">One option per line. Optional action after <code>|</code>: <code>services</code>, <code>booking</code>, <code>hours</code>, <code>location</code>, <code>payment</code>, <code>staff</code>.</p>
+            </div>
+            <div>
+              <Label htmlFor="greetingKeywords">Greeting Keywords (Business-wise)</Label>
+              <Textarea
+                id="greetingKeywords"
+                value={form.greetingKeywords}
+                onChange={(e) => set("greetingKeywords", e.target.value)}
+                placeholder={"hi\nhii\nhello\nhelo\nhey"}
+                rows={4}
+                className="mt-1 resize-none text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-2">One keyword per line (or comma separated). If customer sends one of these, bot sends this business welcome menu message.</p>
+            </div>
+            <div>
+              <Label htmlFor="paymentMethods">Payment Methods Reply</Label>
+              <Textarea
+                id="paymentMethods"
+                value={form.paymentMethods}
+                onChange={(e) => set("paymentMethods", e.target.value)}
+                placeholder="We accept cash, card, UPI, and online transfer."
+                rows={3}
+                className="mt-1 resize-none text-sm"
+              />
+            </div>
+            <div>
+              <Label htmlFor="staffContactMessage">Talk to Staff Reply</Label>
+              <Textarea
+                id="staffContactMessage"
+                value={form.staffContactMessage}
+                onChange={(e) => set("staffContactMessage", e.target.value)}
+                placeholder="Please contact our front desk at +1-555-0101 and we'll help you right away."
+                rows={3}
+                className="mt-1 resize-none text-sm"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Custom AI System Prompt */}
       <Card className="overflow-hidden border-2 border-dashed border-indigo-200">
         <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-indigo-100 px-6 py-4 flex items-center justify-between gap-3">
@@ -300,6 +437,21 @@ export default function SettingsPage() {
           )}
         </div>
         <CardContent className="pt-5 space-y-3">
+          <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/80 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <div>
+                <p className="text-sm font-semibold text-indigo-900">AI Fallback</p>
+                <p className="text-xs text-indigo-700">{form.aiFallbackEnabled ? "Enabled: AI can answer when FAQ/Service/Booking do not match" : "Disabled: Bot will return safe no-match response"}</p>
+              </div>
+            </div>
+            <Switch
+              checked={form.aiFallbackEnabled}
+              onCheckedChange={(v) => {
+                set("aiFallbackEnabled", v);
+              }}
+            />
+          </div>
           <Textarea
             id="customAiPrompt"
             value={form.customAiPrompt}

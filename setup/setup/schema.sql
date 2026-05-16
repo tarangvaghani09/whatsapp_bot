@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS "customers" (
   "phone"       text NOT NULL,
   "name"        text,
   "tags"        text[] DEFAULT '{}' NOT NULL,
+  "flow_state"  text,
+  "flow_data"   text,
   "created_at"  timestamp with time zone DEFAULT now() NOT NULL,
   "updated_at"  timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -105,6 +107,12 @@ CREATE TABLE IF NOT EXISTS "settings" (
   "website"          text,
   "opening_hours"    text,
   "description"      text,
+  "no_match_message" text,
+  "ai_fallback_enabled" boolean DEFAULT true NOT NULL,
+  "welcome_menu_message" text,
+  "welcome_menu_options" text,
+  "payment_methods" text,
+  "staff_contact_message" text,
   "currency"         text DEFAULT 'USD' NOT NULL,
   "custom_ai_prompt" text,
   "updated_at"       timestamp with time zone DEFAULT now() NOT NULL

@@ -73,7 +73,15 @@ export default function TestBotPage() {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sessionIdRef = useRef<string>("");
   const simulate = useSimulateMessage();
+
+  if (!sessionIdRef.current) {
+    sessionIdRef.current =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `testbot-${Date.now()}`;
+  }
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -92,7 +100,7 @@ export default function TestBotPage() {
     setInput("");
 
     simulate.mutate(
-      { data: { message: trimmed }, params: { businessId } },
+      { data: { message: trimmed, sessionId: sessionIdRef.current }, params: { businessId } },
       {
         onSuccess: (data) => {
           setMessages((prev) =>

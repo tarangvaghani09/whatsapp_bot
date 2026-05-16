@@ -312,6 +312,19 @@ export interface BusinessSettings {
   openingHours: string | null;
   /** @nullable */
   description: string | null;
+  /** @nullable */
+  noMatchMessage: string | null;
+  aiFallbackEnabled: boolean;
+  /** @nullable */
+  welcomeMenuMessage: string | null;
+  /** @nullable */
+  welcomeMenuOptions: string | null;
+  /** @nullable */
+  greetingKeywords: string | null;
+  /** @nullable */
+  paymentMethods: string | null;
+  /** @nullable */
+  staffContactMessage: string | null;
   currency: string;
   /** @nullable */
   customAiPrompt: string | null;
@@ -327,12 +340,20 @@ export interface UpdateSettingsBody {
   website?: string;
   openingHours?: string;
   description?: string;
+  noMatchMessage?: string;
+  aiFallbackEnabled?: boolean;
+  welcomeMenuMessage?: string;
+  welcomeMenuOptions?: string;
+  greetingKeywords?: string;
+  paymentMethods?: string;
+  staffContactMessage?: string;
   currency?: string;
   customAiPrompt?: string;
 }
 
 export interface SimulateMessageBody {
   message: string;
+  sessionId?: string;
 }
 
 export type SimulateMessageResponseReplyType = typeof SimulateMessageResponseReplyType[keyof typeof SimulateMessageResponseReplyType];
@@ -616,4 +637,3 @@ businessId?: BusinessIdParamParameter;
 page?: number;
 limit?: number;
 };
-

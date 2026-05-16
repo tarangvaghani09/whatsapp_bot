@@ -2,9 +2,10 @@ import { db, customersTable, botMessagesTable, faqsTable, servicesTable, booking
 import { eq, and, desc, isNotNull, isNull } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { sendWhatsAppMessage, type BusinessCreds, type SendResult } from "./whatsapp";
-import { matchFaq, matchService, detectBookingIntent, detectGreeting, formatServiceReply } from "./faq-matcher";
+import { matchFaq, matchService, detectBookingIntent, formatServiceReply, detectGreetingWithCustomKeywords } from "./faq-matcher";
 import { logger } from "./logger";
 import { decryptSecret } from "./secrets";
+import { handleGuidedMessage } from "./guided-menu";
 
 const DEFAULT_SYSTEM_PROMPT = `You are a helpful WhatsApp assistant for a business.
 Answer only business-related questions. Keep answers short (under 100 words).
@@ -118,6 +119,39 @@ function buildGreetingReply(businessName: string, openingHours?: string | null):
   return lines.join("\n");
 }
 
+function applyWelcomePlaceholders(
+  template: string,
+  settings: { businessName?: string | null; openingHours?: string | null; address?: string | null } | undefined,
+  fallbackName: string,
+): string {
+  const businessName = settings?.businessName?.trim() || fallbackName || "our business";
+  const openingHours = settings?.openingHours?.trim() || "";
+  const address = settings?.address?.trim() || "";
+
+  return template
+    .replaceAll("{businessName}", businessName)
+    .replaceAll("{openingHours}", openingHours)
+    .replaceAll("{address}", address);
+}
+
+function getGreetingReply(
+  settings:
+    | {
+        businessName?: string | null;
+        openingHours?: string | null;
+        address?: string | null;
+        welcomeMenuMessage?: string | null;
+      }
+    | undefined,
+  fallbackName: string,
+): string {
+  const custom = settings?.welcomeMenuMessage?.trim();
+  if (custom) {
+    return applyWelcomePlaceholders(custom, settings, fallbackName);
+  }
+  return buildGreetingReply(settings?.businessName ?? fallbackName, settings?.openingHours);
+}
+
 function detectRatingReply(text: string): number | null {
   const trimmed = text.trim();
   if (/^[1-5]$/.test(trimmed)) return parseInt(trimmed, 10);
@@ -127,6 +161,20 @@ function detectRatingReply(text: string): number | null {
   const lower = trimmed.toLowerCase();
   if (words[lower] !== undefined) return words[lower]!;
   return null;
+}
+
+function getSafeNoMatchReply(
+  settings: { businessName?: string | null; phone?: string | null; email?: string | null; noMatchMessage?: string | null } | undefined,
+  fallbackName: string,
+): string {
+  const custom = settings?.noMatchMessage?.trim();
+  if (custom) return custom;
+  const name = settings?.businessName?.trim() || fallbackName;
+  const contact = settings?.phone?.trim() || settings?.email?.trim();
+  if (contact) {
+    return `I couldn't find an exact match for your question at ${name}. Please contact us at ${contact} and we'll help you right away.`;
+  }
+  return `I couldn't find an exact match for your question at ${name}. Please contact our support team and we'll help you right away.`;
 }
 
 export async function handleIncomingMessage(phone: string, text: string, phoneNumberId: string): Promise<void> {
@@ -146,6 +194,12 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
       : undefined;
 
   const customer = await getOrCreateCustomer(phone, businessId);
+  const settingsRows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
+  const settings = settingsRows[0];
+  const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
+  const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
+  const services = await db.select().from(servicesTable)
+    .where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
 
   await logMessage(customer.id, businessId, "inbound", text, "none");
 
@@ -181,11 +235,45 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
     }
   }
 
+  const guided = handleGuidedMessage({
+    text,
+    customer,
+    settings: settings ?? {},
+    fallbackBusinessName: business.name,
+    services,
+  });
+
+  if (guided?.handled) {
+    await db.update(customersTable)
+      .set({
+        flowState: guided.flowState,
+        flowData: guided.flowData,
+        ...(guided.customerName ? { name: guided.customerName } : {}),
+      })
+      .where(eq(customersTable.id, customer.id));
+
+    if (guided.bookingDraft) {
+      await db.insert(bookingsTable).values({
+        customerId: customer.id,
+        businessId,
+        service: guided.bookingDraft.service,
+        requestedDate: guided.bookingDraft.requestedDate,
+        requestedTime: guided.bookingDraft.requestedTime,
+        notes: text,
+        status: "pending",
+      });
+    }
+
+    const result = await sendWhatsAppMessage(phone, guided.reply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, guided.reply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", guided.reply, guided.replyType);
+    logger.info({ phone, businessId, flowState: guided.flowState }, "Guided menu flow handled message");
+    return;
+  }
+
   // ── Greeting ──────────────────────────────────────────────────────────────
-  if (detectGreeting(text)) {
-    const rows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
-    const s = rows[0];
-    const reply = buildGreetingReply(s?.businessName ?? business.name, s?.openingHours);
+  if (detectGreetingWithCustomKeywords(text, settings?.greetingKeywords)) {
+    const reply = getGreetingReply(settings, business.name);
     const result = await sendWhatsAppMessage(phone, reply, creds);
     if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
     await logMessage(customer.id, businessId, "outbound", reply, "faq");
@@ -208,8 +296,6 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
   }
 
   // ── Service match ─────────────────────────────────────────────────────────
-  const services = await db.select().from(servicesTable)
-    .where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
   const matchedService = matchService(text, services);
 
   if (matchedService) {
@@ -238,6 +324,15 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
   }
 
   // ── OpenAI fallback ───────────────────────────────────────────────────────
+  if (!aiEnabledForBusiness) {
+    const safeReply = getSafeNoMatchReply(settings, business.name);
+    const result = await sendWhatsAppMessage(phone, safeReply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, safeReply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", safeReply, "none");
+    logger.info({ phone, businessId }, "No match — AI disabled for business, sent safe no-match reply");
+    return;
+  }
+
   logger.info({ phone, businessId }, "No match — calling OpenAI");
   const aiReply = await callOpenAI(text, customer.id, businessId);
   const result = await sendWhatsAppMessage(phone, aiReply, creds);

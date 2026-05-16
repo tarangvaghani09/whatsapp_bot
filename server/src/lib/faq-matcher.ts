@@ -72,6 +72,23 @@ export function detectGreeting(message: string): boolean {
   return GREETING_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
+function parseGreetingKeywords(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[\n,]+/)
+    .map((value) => normalizeText(value))
+    .filter(Boolean);
+}
+
+export function detectGreetingWithCustomKeywords(message: string, rawKeywords: string | null | undefined): boolean {
+  if (detectGreeting(message)) return true;
+  const normalized = normalizeText(message);
+  if (!normalized) return false;
+  const words = parseGreetingKeywords(rawKeywords);
+  if (words.length === 0) return false;
+  return words.some((word) => normalized === word);
+}
+
 export function detectBookingIntent(message: string): boolean {
   const bookingKeywords = [
     "book",

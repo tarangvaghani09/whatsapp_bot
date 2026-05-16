@@ -15455,7 +15455,7 @@ var require_type_is = __commonJS({
     module.exports = typeofrequest;
     module.exports.is = typeis;
     module.exports.hasBody = hasbody;
-    module.exports.normalize = normalize;
+    module.exports.normalize = normalize2;
     module.exports.match = mimeMatch;
     function typeis(value, types_) {
       var i;
@@ -15475,7 +15475,7 @@ var require_type_is = __commonJS({
       }
       var type;
       for (i = 0; i < types3.length; i++) {
-        if (mimeMatch(normalize(type = types3[i]), val)) {
+        if (mimeMatch(normalize2(type = types3[i]), val)) {
           return type[0] === "+" || type.indexOf("*") !== -1 ? val : type;
         }
       }
@@ -15490,7 +15490,7 @@ var require_type_is = __commonJS({
       var value = req.headers["content-type"];
       return typeis(value, types3);
     }
-    function normalize(type) {
+    function normalize2(type) {
       if (typeof type !== "string") {
         return false;
       }
@@ -22579,7 +22579,7 @@ var require_send = __commonJS({
     var util2 = __require("util");
     var extname = path2.extname;
     var join = path2.join;
-    var normalize = path2.normalize;
+    var normalize2 = path2.normalize;
     var resolve = path2.resolve;
     var sep = path2.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
@@ -22742,7 +22742,7 @@ var require_send = __commonJS({
       var parts;
       if (root !== null) {
         if (path3) {
-          path3 = normalize("." + sep + path3);
+          path3 = normalize2("." + sep + path3);
         }
         if (UP_PATH_REGEXP.test(path3)) {
           debug('malicious path "%s"', path3);
@@ -22750,14 +22750,14 @@ var require_send = __commonJS({
           return res;
         }
         parts = path3.split(sep);
-        path3 = normalize(join(root, path3));
+        path3 = normalize2(join(root, path3));
       } else {
         if (UP_PATH_REGEXP.test(path3)) {
           debug('malicious path "%s"', path3);
           this.error(403);
           return res;
         }
-        parts = normalize(path3).split(sep);
+        parts = normalize2(path3).split(sep);
         path3 = resolve(path3);
       }
       if (containsDotFile(parts)) {
@@ -28204,11 +28204,11 @@ var require_pino = __commonJS({
       depthLimit: 5,
       edgeLimit: 100
     };
-    var normalize = createArgsNormalizer(defaultOptions);
+    var normalize2 = createArgsNormalizer(defaultOptions);
     var serializers = Object.assign(/* @__PURE__ */ Object.create(null), stdSerializers);
     function pino2(...args) {
       const instance = {};
-      const { opts, stream } = normalize(instance, caller(), ...args);
+      const { opts, stream } = normalize2(instance, caller(), ...args);
       if (opts.level && typeof opts.level === "string" && DEFAULT_LEVELS[opts.level.toLowerCase()] !== void 0) opts.level = opts.level.toLowerCase();
       const {
         redact,
@@ -57978,6 +57978,8 @@ var customersTable = pgTable(
     phone: text("phone").notNull(),
     name: text("name"),
     tags: text("tags").array().notNull().default([]),
+    flowState: text("flow_state"),
+    flowData: text("flow_data"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => /* @__PURE__ */ new Date())
   },
@@ -58103,6 +58105,13 @@ var settingsTable = pgTable("settings", {
   website: text("website"),
   openingHours: text("opening_hours"),
   description: text("description"),
+  noMatchMessage: text("no_match_message"),
+  aiFallbackEnabled: boolean("ai_fallback_enabled").notNull().default(true),
+  welcomeMenuMessage: text("welcome_menu_message"),
+  welcomeMenuOptions: text("welcome_menu_options"),
+  greetingKeywords: text("greeting_keywords"),
+  paymentMethods: text("payment_methods"),
+  staffContactMessage: text("staff_contact_message"),
   currency: text("currency").notNull().default("USD"),
   customAiPrompt: text("custom_ai_prompt"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => /* @__PURE__ */ new Date())
@@ -62736,6 +62745,13 @@ var GetSettingsResponse = objectType({
   "website": stringType().nullable(),
   "openingHours": stringType().nullable(),
   "description": stringType().nullable(),
+  "noMatchMessage": stringType().nullable(),
+  "aiFallbackEnabled": booleanType(),
+  "welcomeMenuMessage": stringType().nullable(),
+  "welcomeMenuOptions": stringType().nullable(),
+  "greetingKeywords": stringType().nullable(),
+  "paymentMethods": stringType().nullable(),
+  "staffContactMessage": stringType().nullable(),
   "currency": stringType(),
   "customAiPrompt": stringType().nullable(),
   "updatedAt": coerce.date()
@@ -62752,6 +62768,13 @@ var UpdateSettingsBody = objectType({
   "website": stringType().optional(),
   "openingHours": stringType().optional(),
   "description": stringType().optional(),
+  "noMatchMessage": stringType().optional(),
+  "aiFallbackEnabled": booleanType().optional(),
+  "welcomeMenuMessage": stringType().optional(),
+  "welcomeMenuOptions": stringType().optional(),
+  "greetingKeywords": stringType().optional(),
+  "paymentMethods": stringType().optional(),
+  "staffContactMessage": stringType().optional(),
   "currency": stringType().optional(),
   "customAiPrompt": stringType().optional()
 });
@@ -62765,6 +62788,13 @@ var UpdateSettingsResponse = objectType({
   "website": stringType().nullable(),
   "openingHours": stringType().nullable(),
   "description": stringType().nullable(),
+  "noMatchMessage": stringType().nullable(),
+  "aiFallbackEnabled": booleanType(),
+  "welcomeMenuMessage": stringType().nullable(),
+  "welcomeMenuOptions": stringType().nullable(),
+  "greetingKeywords": stringType().nullable(),
+  "paymentMethods": stringType().nullable(),
+  "staffContactMessage": stringType().nullable(),
   "currency": stringType(),
   "customAiPrompt": stringType().nullable(),
   "updatedAt": coerce.date()
@@ -62773,7 +62803,8 @@ var SimulateMessageQueryParams = objectType({
   "businessId": coerce.number().optional().describe("Business ID to scope the request to. Defaults to the first business if not provided.")
 });
 var SimulateMessageBody = objectType({
-  "message": stringType()
+  "message": stringType(),
+  "sessionId": stringType().optional()
 });
 var SimulateMessageResponse = objectType({
   "replyType": enumType(["faq", "service", "booking", "ai", "none", "rating"]),
@@ -72084,6 +72115,18 @@ function detectGreeting(message) {
   const trimmed = message.trim();
   return GREETING_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
+function parseGreetingKeywords(raw) {
+  if (!raw) return [];
+  return raw.split(/[\n,]+/).map((value) => normalizeText(value)).filter(Boolean);
+}
+function detectGreetingWithCustomKeywords(message, rawKeywords) {
+  if (detectGreeting(message)) return true;
+  const normalized = normalizeText(message);
+  if (!normalized) return false;
+  const words = parseGreetingKeywords(rawKeywords);
+  if (words.length === 0) return false;
+  return words.some((word) => normalized === word);
+}
 function detectBookingIntent(message) {
   const bookingKeywords = [
     "book",
@@ -72158,6 +72201,330 @@ function decryptSecret(value) {
 function maskSecret(value) {
   if (!value) return null;
   return "********";
+}
+
+// src/lib/guided-menu.ts
+var DEFAULT_MENU_OPTIONS = [
+  { label: "Services & Price", action: "services" },
+  { label: "Book Appointment", action: "booking" },
+  { label: "Business Timing", action: "hours" },
+  { label: "Location", action: "location" },
+  { label: "Talk to Staff", action: "staff" }
+];
+function normalize(text2) {
+  return text2.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function parseAction(raw) {
+  const value = normalize(raw);
+  if (!value) return "unknown";
+  if (value.includes("service") || value.includes("price")) return "services";
+  if (value.includes("book") || value.includes("appointment") || value.includes("visit")) return "booking";
+  if (value.includes("hour") || value.includes("timing") || value.includes("time")) return "hours";
+  if (value.includes("location") || value.includes("direction") || value.includes("address")) return "location";
+  if (value.includes("payment") || value.includes("card") || value.includes("upi") || value.includes("cash")) return "payment";
+  if (value.includes("staff") || value.includes("reception") || value.includes("support") || value.includes("talk")) return "staff";
+  return "unknown";
+}
+function parseMenuOptions(raw) {
+  const lines = (raw ?? "").split(/\r?\n/).map((line2) => line2.trim()).filter(Boolean);
+  if (lines.length === 0) return DEFAULT_MENU_OPTIONS;
+  const parsed = lines.map((line2) => {
+    const [labelPart, actionPart] = line2.split("|").map((part) => part.trim());
+    const label = labelPart || "";
+    if (!label) return null;
+    return {
+      label,
+      action: actionPart ? parseAction(actionPart) : parseAction(label)
+    };
+  }).filter((item) => Boolean(item));
+  return parsed.length > 0 ? parsed : DEFAULT_MENU_OPTIONS;
+}
+function applyWelcomePlaceholders(template, settings, fallbackName) {
+  const businessName = settings.businessName?.trim() || fallbackName || "our business";
+  const openingHours = settings.openingHours?.trim() || "";
+  const address = settings.address?.trim() || "";
+  return template.replaceAll("{businessName}", businessName).replaceAll("{openingHours}", openingHours).replaceAll("{address}", address);
+}
+function buildBaseGreeting(settings, fallbackName) {
+  const name = settings.businessName?.trim() || fallbackName || "our business";
+  const lines = [
+    `Hello! Welcome to *${name}*.`,
+    "We're happy to help you!"
+  ];
+  if (settings.openingHours?.trim()) {
+    lines.push(`We're open: ${settings.openingHours.trim()}`);
+  }
+  return lines.join("\n");
+}
+function buildGreetingReply(settings, fallbackName) {
+  const intro = settings.welcomeMenuMessage?.trim() ? applyWelcomePlaceholders(settings.welcomeMenuMessage.trim(), settings, fallbackName) : buildBaseGreeting(settings, fallbackName);
+  const options = parseMenuOptions(settings.welcomeMenuOptions);
+  if (options.length === 0) return intro;
+  const optionLines = options.map((option, index2) => `${index2 + 1}. ${option.label}`);
+  return `${intro}
+
+Please choose:
+${optionLines.join("\n")}`;
+}
+function parseFlowData(raw) {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+function serializeFlowData(data) {
+  if (!data || Object.keys(data).length === 0) return null;
+  return JSON.stringify(data);
+}
+function findMenuSelection(text2, options) {
+  const trimmed = text2.trim();
+  const num = Number(trimmed);
+  if (Number.isInteger(num) && num >= 1 && num <= options.length) {
+    return options[num - 1] ?? null;
+  }
+  const normalized = normalize(text2);
+  return options.find((option) => {
+    const label = normalize(option.label);
+    return normalized === label || normalized.includes(label) || label.includes(normalized);
+  }) ?? null;
+}
+function currencySymbol(currency) {
+  switch ((currency ?? "").toUpperCase()) {
+    case "INR":
+      return "Rs";
+    case "USD":
+      return "$";
+    case "EUR":
+      return "EUR";
+    case "GBP":
+      return "GBP";
+    default:
+      return currency?.toUpperCase() || "";
+  }
+}
+function formatServiceLine(service, currency) {
+  const price = service.price == null ? "Price on request" : `${currencySymbol(currency)} ${service.price}`;
+  const duration3 = service.duration == null ? "" : ` (${service.duration} min)`;
+  return `- ${service.name}: ${price}${duration3}`;
+}
+function listCategories(services) {
+  return [...new Set(
+    services.map((service) => service.category?.trim()).filter((category) => Boolean(category))
+  )];
+}
+function findCategorySelection(text2, categories) {
+  const trimmed = text2.trim();
+  const num = Number(trimmed);
+  if (Number.isInteger(num) && num >= 1 && num <= categories.length) {
+    return categories[num - 1] ?? null;
+  }
+  const normalized = normalize(text2);
+  return categories.find((category) => {
+    const value = normalize(category);
+    return normalized === value || normalized.includes(value) || value.includes(normalized);
+  }) ?? null;
+}
+function filterServicesByCategory(services, category) {
+  if (!category) return services;
+  return services.filter((service) => (service.category?.trim() || "") === category);
+}
+function findServiceSelection(text2, services) {
+  const trimmed = text2.trim();
+  const num = Number(trimmed);
+  if (Number.isInteger(num) && num >= 1 && num <= services.length) {
+    return services[num - 1] ?? null;
+  }
+  const normalized = normalize(text2);
+  return services.find((service) => {
+    const name = normalize(service.name);
+    return normalized === name || normalized.includes(name) || name.includes(normalized);
+  }) ?? null;
+}
+function buildCategoryPrompt(title, categories) {
+  return `${title}
+${categories.map((category, index2) => `${index2 + 1}. ${category}`).join("\n")}`;
+}
+function buildServiceSelectionPrompt(services) {
+  return `Which service do you want?
+${services.map((service, index2) => `${index2 + 1}. ${service.name}`).join("\n")}`;
+}
+function buildServicesReply(services, currency, category) {
+  const heading = category ? `Here are our ${category} services:` : "Here are our available services:";
+  return `${heading}
+${services.map((service) => formatServiceLine(service, currency)).join("\n")}`;
+}
+function buildHoursReply(settings) {
+  return settings.openingHours?.trim() ? `Our timing is: ${settings.openingHours.trim()}` : "Please contact us for the latest business timing.";
+}
+function buildLocationReply(settings) {
+  return settings.address?.trim() ? `You can find us at: ${settings.address.trim()}` : "Please contact us for our current location and directions.";
+}
+function buildPaymentReply(settings) {
+  return settings.paymentMethods?.trim() ? settings.paymentMethods.trim() : "Please contact us to confirm available payment methods.";
+}
+function buildStaffReply(settings) {
+  if (settings.staffContactMessage?.trim()) return settings.staffContactMessage.trim();
+  if (settings.phone?.trim()) return `Please contact our team at ${settings.phone.trim()} and we'll help you right away.`;
+  if (settings.email?.trim()) return `Please email our team at ${settings.email.trim()} and we'll help you right away.`;
+  return "Our staff will be happy to help. Please contact our front desk for assistance.";
+}
+function replyResult(reply, replyType, flowState, flowData, extras) {
+  return {
+    handled: true,
+    reply,
+    replyType,
+    flowState,
+    flowData: serializeFlowData(flowData),
+    ...extras
+  };
+}
+function handleMenuAction(action, settings, services) {
+  const categories = listCategories(services);
+  switch (action) {
+    case "services":
+      if (categories.length > 1) {
+        return replyResult(
+          buildCategoryPrompt("Choose a service category:", categories),
+          "service",
+          "awaiting_service_category",
+          { intent: "services" }
+        );
+      }
+      return replyResult(buildServicesReply(services, settings.currency), "service", null, null);
+    case "booking":
+      if (services.length === 0) {
+        return replyResult("We don't have bookable services configured yet. Please contact our team directly.", "booking", null, null);
+      }
+      if (categories.length > 1) {
+        return replyResult(
+          buildCategoryPrompt("Choose a booking category:", categories),
+          "booking",
+          "awaiting_booking_category",
+          { intent: "booking" }
+        );
+      }
+      return replyResult(
+        buildServiceSelectionPrompt(services),
+        "booking",
+        "awaiting_booking_service",
+        { intent: "booking" }
+      );
+    case "hours":
+      return replyResult(buildHoursReply(settings), "faq", null, null);
+    case "location":
+      return replyResult(buildLocationReply(settings), "faq", null, null);
+    case "payment":
+      return replyResult(buildPaymentReply(settings), "faq", null, null);
+    case "staff":
+      return replyResult(buildStaffReply(settings), "none", null, null);
+    default:
+      return null;
+  }
+}
+function handleGuidedMessage(params) {
+  const { text: text2, customer, settings, fallbackBusinessName, services } = params;
+  const menuOptions = parseMenuOptions(settings.welcomeMenuOptions);
+  const flowData = parseFlowData(customer.flowData);
+  const currentState = customer.flowState;
+  if (detectGreetingWithCustomKeywords(text2, settings.greetingKeywords)) {
+    return replyResult(
+      buildGreetingReply(settings, fallbackBusinessName),
+      "faq",
+      "awaiting_menu_option",
+      {}
+    );
+  }
+  if (currentState === "awaiting_menu_option") {
+    const selection = findMenuSelection(text2, menuOptions);
+    if (!selection) {
+      return null;
+    }
+    return handleMenuAction(selection.action, settings, services);
+  }
+  if (!currentState) {
+    const directSelection = findMenuSelection(text2, menuOptions);
+    if (directSelection) {
+      return handleMenuAction(directSelection.action, settings, services);
+    }
+    return null;
+  }
+  if (currentState === "awaiting_service_category") {
+    const categories = listCategories(services);
+    const category = findCategorySelection(text2, categories);
+    if (!category) {
+      return replyResult(buildCategoryPrompt("Choose a service category:", categories), "service", currentState, { intent: "services" });
+    }
+    const filtered = filterServicesByCategory(services, category);
+    return replyResult(buildServicesReply(filtered, settings.currency, category), "service", null, null);
+  }
+  if (currentState === "awaiting_booking_category") {
+    const categories = listCategories(services);
+    const category = findCategorySelection(text2, categories);
+    if (!category) {
+      return replyResult(buildCategoryPrompt("Choose a booking category:", categories), "booking", currentState, { intent: "booking" });
+    }
+    const filtered = filterServicesByCategory(services, category);
+    return replyResult(
+      buildServiceSelectionPrompt(filtered),
+      "booking",
+      "awaiting_booking_service",
+      { ...flowData, intent: "booking", selectedCategory: category }
+    );
+  }
+  if (currentState === "awaiting_booking_service") {
+    const filtered = filterServicesByCategory(services, flowData.selectedCategory);
+    const selectedService = findServiceSelection(text2, filtered);
+    if (!selectedService) {
+      return replyResult(
+        buildServiceSelectionPrompt(filtered),
+        "booking",
+        currentState,
+        flowData
+      );
+    }
+    return replyResult(
+      `Great choice. Please send your preferred date for ${selectedService.name}.`,
+      "booking",
+      "awaiting_booking_date",
+      { ...flowData, selectedService: selectedService.name }
+    );
+  }
+  if (currentState === "awaiting_booking_date") {
+    return replyResult(
+      "Please send your preferred time.",
+      "booking",
+      "awaiting_booking_time",
+      { ...flowData, requestedDate: text2.trim() }
+    );
+  }
+  if (currentState === "awaiting_booking_time") {
+    return replyResult(
+      "Please send your name.",
+      "booking",
+      "awaiting_booking_name",
+      { ...flowData, requestedDate: flowData.requestedDate, requestedTime: text2.trim() }
+    );
+  }
+  if (currentState === "awaiting_booking_name") {
+    return replyResult(
+      "Your booking request is received. Our team will confirm shortly.",
+      "booking",
+      null,
+      null,
+      {
+        bookingDraft: {
+          service: flowData.selectedService,
+          requestedDate: flowData.requestedDate,
+          requestedTime: flowData.requestedTime
+        },
+        customerName: text2.trim()
+      }
+    );
+  }
+  return null;
 }
 
 // src/lib/bot-handler.ts
@@ -72238,7 +72605,7 @@ async function callOpenAI(prompt, customerId, businessId) {
   });
   return response;
 }
-function buildGreetingReply(businessName, openingHours) {
+function buildGreetingReply2(businessName, openingHours) {
   const name = businessName || "our business";
   const lines = [
     `\u{1F44B} Hello! Welcome to *${name}*.`,
@@ -72257,6 +72624,19 @@ We're open: ${openingHours}`);
 Just type your question and we'll reply right away! \u{1F60A}`);
   return lines.join("\n");
 }
+function applyWelcomePlaceholders2(template, settings, fallbackName) {
+  const businessName = settings?.businessName?.trim() || fallbackName || "our business";
+  const openingHours = settings?.openingHours?.trim() || "";
+  const address = settings?.address?.trim() || "";
+  return template.replaceAll("{businessName}", businessName).replaceAll("{openingHours}", openingHours).replaceAll("{address}", address);
+}
+function getGreetingReply(settings, fallbackName) {
+  const custom3 = settings?.welcomeMenuMessage?.trim();
+  if (custom3) {
+    return applyWelcomePlaceholders2(custom3, settings, fallbackName);
+  }
+  return buildGreetingReply2(settings?.businessName ?? fallbackName, settings?.openingHours);
+}
 function detectRatingReply(text2) {
   const trimmed = text2.trim();
   if (/^[1-5]$/.test(trimmed)) return parseInt(trimmed, 10);
@@ -72267,6 +72647,16 @@ function detectRatingReply(text2) {
   if (words[lower] !== void 0) return words[lower];
   return null;
 }
+function getSafeNoMatchReply(settings, fallbackName) {
+  const custom3 = settings?.noMatchMessage?.trim();
+  if (custom3) return custom3;
+  const name = settings?.businessName?.trim() || fallbackName;
+  const contact = settings?.phone?.trim() || settings?.email?.trim();
+  if (contact) {
+    return `I couldn't find an exact match for your question at ${name}. Please contact us at ${contact} and we'll help you right away.`;
+  }
+  return `I couldn't find an exact match for your question at ${name}. Please contact our support team and we'll help you right away.`;
+}
 async function handleIncomingMessage(phone, text2, phoneNumberId) {
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.whatsappPhoneNumberId, phoneNumberId)).limit(1);
   if (!business) {
@@ -72276,6 +72666,11 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
   const businessId = business.id;
   const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
   const customer = await getOrCreateCustomer(phone, businessId);
+  const settingsRows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
+  const settings = settingsRows[0];
+  const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
+  const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
+  const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
   await logMessage(customer.id, businessId, "inbound", text2, "none");
   const ratingValue = detectRatingReply(text2);
   if (ratingValue !== null) {
@@ -72298,10 +72693,38 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
       return;
     }
   }
-  if (detectGreeting(text2)) {
-    const rows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
-    const s = rows[0];
-    const reply = buildGreetingReply(s?.businessName ?? business.name, s?.openingHours);
+  const guided = handleGuidedMessage({
+    text: text2,
+    customer,
+    settings: settings ?? {},
+    fallbackBusinessName: business.name,
+    services
+  });
+  if (guided?.handled) {
+    await db.update(customersTable).set({
+      flowState: guided.flowState,
+      flowData: guided.flowData,
+      ...guided.customerName ? { name: guided.customerName } : {}
+    }).where(eq(customersTable.id, customer.id));
+    if (guided.bookingDraft) {
+      await db.insert(bookingsTable).values({
+        customerId: customer.id,
+        businessId,
+        service: guided.bookingDraft.service,
+        requestedDate: guided.bookingDraft.requestedDate,
+        requestedTime: guided.bookingDraft.requestedTime,
+        notes: text2,
+        status: "pending"
+      });
+    }
+    const result2 = await sendWhatsAppMessage(phone, guided.reply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, guided.reply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", guided.reply, guided.replyType);
+    logger.info({ phone, businessId, flowState: guided.flowState }, "Guided menu flow handled message");
+    return;
+  }
+  if (detectGreetingWithCustomKeywords(text2, settings?.greetingKeywords)) {
+    const reply = getGreetingReply(settings, business.name);
     const result2 = await sendWhatsAppMessage(phone, reply, creds);
     if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
     await logMessage(customer.id, businessId, "outbound", reply, "faq");
@@ -72318,7 +72741,6 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
     logger.info({ phone, businessId, faqId: matchedFaq.id }, "FAQ match \u2014 no AI call");
     return;
   }
-  const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
   const matchedService = matchService(text2, services);
   if (matchedService) {
     const reply = formatServiceReply(matchedService);
@@ -72340,6 +72762,14 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
     if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
     await logMessage(customer.id, businessId, "outbound", reply, "booking");
     logger.info({ phone, businessId }, "Booking intent \u2014 no AI call");
+    return;
+  }
+  if (!aiEnabledForBusiness) {
+    const safeReply = getSafeNoMatchReply(settings, business.name);
+    const result2 = await sendWhatsAppMessage(phone, safeReply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, safeReply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", safeReply, "none");
+    logger.info({ phone, businessId }, "No match \u2014 AI disabled for business, sent safe no-match reply");
     return;
   }
   logger.info({ phone, businessId }, "No match \u2014 calling OpenAI");
@@ -73733,6 +74163,17 @@ var settings_default = router12;
 // src/routes/simulate.ts
 var import_express13 = __toESM(require_express2(), 1);
 var router13 = (0, import_express13.Router)();
+async function getOrCreateTestCustomer(sessionId, businessId) {
+  const phone = `__testbot__:${sessionId}`;
+  const existing = await db.select().from(customersTable).where(and(eq(customersTable.phone, phone), eq(customersTable.businessId, businessId))).limit(1);
+  if (existing[0]) return existing[0];
+  const [created] = await db.insert(customersTable).values({
+    businessId,
+    phone,
+    name: "Test Bot Customer"
+  }).returning();
+  return created;
+}
 async function buildSystemPrompt(businessId) {
   const rows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
   const s = rows[0];
@@ -73749,104 +74190,183 @@ async function buildSystemPrompt(businessId) {
   parts.push("Answer only business-related questions. Keep answers short (under 100 words).");
   return parts.join(" ");
 }
+function getSafeNoMatchReply2(settings) {
+  const custom3 = settings?.noMatchMessage?.trim();
+  if (custom3) return custom3;
+  const name = settings?.businessName?.trim() || "our business";
+  const contact = settings?.phone?.trim() || settings?.email?.trim();
+  if (contact) {
+    return `I couldn't find an exact match for your question at ${name}. Please contact us at ${contact} and we'll help you right away.`;
+  }
+  return `I couldn't find an exact match for your question at ${name}. Please contact our support team and we'll help you right away.`;
+}
+function isAiConfigured() {
+  return Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
+}
+function getAiConfigMissingReply(settings) {
+  const name = settings?.businessName?.trim() || "this business";
+  return `AI fallback is enabled for ${name}, but OpenAI API key is missing on server. Please set AI_INTEGRATIONS_OPENAI_API_KEY in .env and restart server.`;
+}
 router13.post("/simulate", async (req, res) => {
-  const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(req, q.data?.businessId);
-  const parsed = SimulateMessageBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const { message } = parsed.data;
-  if (detectGreeting(message)) {
-    const rows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
-    const s = rows[0];
-    const name = s?.businessName || "our business";
-    const lines = [
-      `\u{1F44B} Hello! Welcome to *${name}*.`,
-      `We're happy to help you! You can ask us about:`,
-      `\u2022 \u{1F550} Opening hours`,
-      `\u2022 \u{1F4CD} Location & directions`,
-      `\u2022 \u{1F487} Services & pricing`,
-      `\u2022 \u{1F4C5} Booking an appointment`,
-      `\u2022 \u{1F4B3} Payment methods`
-    ];
-    if (s?.openingHours) lines.push(`
-We're open: ${s.openingHours}`);
-    lines.push(`
-Just type your question and we'll reply right away! \u{1F60A}`);
-    const greetingReply = lines.join("\n");
+  let settings;
+  try {
+    const q = BusinessIdQueryParam.safeParse(req.query);
+    const businessId = await resolveBusinessId(req, q.data?.businessId);
+    const parsed = SimulateMessageBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const { message, sessionId } = parsed.data;
+    const settingsRows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
+    settings = settingsRows[0];
+    const customer = await getOrCreateTestCustomer(sessionId ?? "default", businessId);
+    const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
+    const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
+    const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
+    const guided = handleGuidedMessage({
+      text: message,
+      customer,
+      settings: settings ?? {},
+      fallbackBusinessName: settings?.businessName ?? "our business",
+      services
+    });
+    if (guided?.handled) {
+      await db.update(customersTable).set({
+        flowState: guided.flowState,
+        flowData: guided.flowData,
+        ...guided.customerName ? { name: guided.customerName } : {}
+      }).where(eq(customersTable.id, customer.id));
+      if (guided.bookingDraft) {
+        await db.insert(bookingsTable).values({
+          businessId,
+          customerId: customer.id,
+          service: guided.bookingDraft.service,
+          requestedDate: guided.bookingDraft.requestedDate,
+          requestedTime: guided.bookingDraft.requestedTime,
+          notes: "Created from Test Bot guided menu flow",
+          status: "pending"
+        });
+      }
+      res.json(SimulateMessageResponse.parse({
+        replyType: guided.replyType,
+        response: guided.reply,
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: null
+      }));
+      return;
+    }
+    const faqs = await db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
+    const matchedFaq = matchFaq(message, faqs);
+    if (matchedFaq) {
+      res.json(SimulateMessageResponse.parse({
+        replyType: "faq",
+        response: matchedFaq.answer,
+        matchedFaqId: matchedFaq.id,
+        matchedFaqQuestion: matchedFaq.question,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: null
+      }));
+      return;
+    }
+    const matchedService = matchService(message, services);
+    if (matchedService) {
+      res.json(SimulateMessageResponse.parse({
+        replyType: "service",
+        response: formatServiceReply(matchedService),
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: matchedService.id,
+        matchedServiceName: matchedService.name,
+        aiTokensUsed: null
+      }));
+      return;
+    }
+    if (detectBookingIntent(message)) {
+      res.json(SimulateMessageResponse.parse({
+        replyType: "booking",
+        response: "I'd love to help you book an appointment! Please tell me: what service you need, your preferred date, and time. Our team will confirm shortly.",
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: null
+      }));
+      return;
+    }
+    if (!aiEnabledForBusiness) {
+      res.json(SimulateMessageResponse.parse({
+        replyType: "none",
+        response: getSafeNoMatchReply2(settings),
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: null
+      }));
+      return;
+    }
+    if (!isAiConfigured()) {
+      res.json(SimulateMessageResponse.parse({
+        replyType: "none",
+        response: getAiConfigMissingReply(settings),
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: null
+      }));
+      return;
+    }
+    try {
+      const systemPrompt = await buildSystemPrompt(businessId);
+      const completion = await openai.chat.completions.create({
+        model: "gpt-5-mini",
+        max_completion_tokens: 200,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message }
+        ]
+      });
+      const response = completion.choices[0]?.message?.content ?? "I'm sorry, I couldn't understand that.";
+      const tokensUsed = completion.usage?.total_tokens ?? null;
+      res.json(SimulateMessageResponse.parse({
+        replyType: "ai",
+        response,
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: tokensUsed
+      }));
+    } catch (error40) {
+      console.error("AI simulate fallback error:", error40);
+      res.json(SimulateMessageResponse.parse({
+        replyType: "none",
+        response: getSafeNoMatchReply2(settings),
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: null
+      }));
+    }
+  } catch (error40) {
+    console.error("Simulate route error:", error40);
     res.json(SimulateMessageResponse.parse({
-      replyType: "faq",
-      response: greetingReply,
+      replyType: "none",
+      response: getSafeNoMatchReply2(settings),
       matchedFaqId: null,
       matchedFaqQuestion: null,
       matchedServiceId: null,
       matchedServiceName: null,
       aiTokensUsed: null
     }));
-    return;
   }
-  const faqs = await db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
-  const matchedFaq = matchFaq(message, faqs);
-  if (matchedFaq) {
-    res.json(SimulateMessageResponse.parse({
-      replyType: "faq",
-      response: matchedFaq.answer,
-      matchedFaqId: matchedFaq.id,
-      matchedFaqQuestion: matchedFaq.question,
-      matchedServiceId: null,
-      matchedServiceName: null,
-      aiTokensUsed: null
-    }));
-    return;
-  }
-  const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
-  const matchedService = matchService(message, services);
-  if (matchedService) {
-    res.json(SimulateMessageResponse.parse({
-      replyType: "service",
-      response: formatServiceReply(matchedService),
-      matchedFaqId: null,
-      matchedFaqQuestion: null,
-      matchedServiceId: matchedService.id,
-      matchedServiceName: matchedService.name,
-      aiTokensUsed: null
-    }));
-    return;
-  }
-  if (detectBookingIntent(message)) {
-    res.json(SimulateMessageResponse.parse({
-      replyType: "booking",
-      response: "I'd love to help you book an appointment! Please tell me: what service you need, your preferred date, and time. Our team will confirm shortly. \u{1F4C5}",
-      matchedFaqId: null,
-      matchedFaqQuestion: null,
-      matchedServiceId: null,
-      matchedServiceName: null,
-      aiTokensUsed: null
-    }));
-    return;
-  }
-  const systemPrompt = await buildSystemPrompt(businessId);
-  const completion = await openai.chat.completions.create({
-    model: "gpt-5-mini",
-    max_completion_tokens: 200,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: message }
-    ]
-  });
-  const response = completion.choices[0]?.message?.content ?? "I'm sorry, I couldn't understand that.";
-  const tokensUsed = completion.usage?.total_tokens ?? null;
-  res.json(SimulateMessageResponse.parse({
-    replyType: "ai",
-    response,
-    matchedFaqId: null,
-    matchedFaqQuestion: null,
-    matchedServiceId: null,
-    matchedServiceName: null,
-    aiTokensUsed: tokensUsed
-  }));
 });
 var simulate_default = router13;
 

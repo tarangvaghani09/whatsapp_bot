@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +18,13 @@ export const settingsTable = pgTable("settings", {
   website: text("website"),
   openingHours: text("opening_hours"),
   description: text("description"),
+  noMatchMessage: text("no_match_message"),
+  aiFallbackEnabled: boolean("ai_fallback_enabled").notNull().default(true),
+  welcomeMenuMessage: text("welcome_menu_message"),
+  welcomeMenuOptions: text("welcome_menu_options"),
+  greetingKeywords: text("greeting_keywords"),
+  paymentMethods: text("payment_methods"),
+  staffContactMessage: text("staff_contact_message"),
   currency: text("currency").notNull().default("USD"),
   customAiPrompt: text("custom_ai_prompt"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

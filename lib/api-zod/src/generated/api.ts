@@ -673,6 +673,13 @@ export const GetSettingsResponse = zod.object({
   "website": zod.string().nullable(),
   "openingHours": zod.string().nullable(),
   "description": zod.string().nullable(),
+  "noMatchMessage": zod.string().nullable(),
+  "aiFallbackEnabled": zod.boolean(),
+  "welcomeMenuMessage": zod.string().nullable(),
+  "welcomeMenuOptions": zod.string().nullable(),
+  "greetingKeywords": zod.string().nullable(),
+  "paymentMethods": zod.string().nullable(),
+  "staffContactMessage": zod.string().nullable(),
   "currency": zod.string(),
   "customAiPrompt": zod.string().nullable(),
   "updatedAt": zod.coerce.date()
@@ -695,6 +702,13 @@ export const UpdateSettingsBody = zod.object({
   "website": zod.string().optional(),
   "openingHours": zod.string().optional(),
   "description": zod.string().optional(),
+  "noMatchMessage": zod.string().optional(),
+  "aiFallbackEnabled": zod.boolean().optional(),
+  "welcomeMenuMessage": zod.string().optional(),
+  "welcomeMenuOptions": zod.string().optional(),
+  "greetingKeywords": zod.string().optional(),
+  "paymentMethods": zod.string().optional(),
+  "staffContactMessage": zod.string().optional(),
   "currency": zod.string().optional(),
   "customAiPrompt": zod.string().optional()
 })
@@ -709,6 +723,13 @@ export const UpdateSettingsResponse = zod.object({
   "website": zod.string().nullable(),
   "openingHours": zod.string().nullable(),
   "description": zod.string().nullable(),
+  "noMatchMessage": zod.string().nullable(),
+  "aiFallbackEnabled": zod.boolean(),
+  "welcomeMenuMessage": zod.string().nullable(),
+  "welcomeMenuOptions": zod.string().nullable(),
+  "greetingKeywords": zod.string().nullable(),
+  "paymentMethods": zod.string().nullable(),
+  "staffContactMessage": zod.string().nullable(),
   "currency": zod.string(),
   "customAiPrompt": zod.string().nullable(),
   "updatedAt": zod.coerce.date()
@@ -723,7 +744,8 @@ export const SimulateMessageQueryParams = zod.object({
 })
 
 export const SimulateMessageBody = zod.object({
-  "message": zod.string()
+  "message": zod.string(),
+  "sessionId": zod.string().optional()
 })
 
 export const SimulateMessageResponse = zod.object({
