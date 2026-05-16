@@ -183,8 +183,45 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
-        <p>Loading settings…</p>
+      <div className="max-w-2xl mx-auto space-y-6 animate-pulse">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <div className="h-7 w-52 rounded-md bg-gray-200" />
+            <div className="h-4 w-80 rounded-md bg-gray-100" />
+          </div>
+          <div className="h-11 w-full sm:w-36 rounded-xl bg-gray-200" />
+        </div>
+
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="overflow-hidden">
+            <div className="border-b border-gray-100 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gray-200" />
+                <div className="space-y-2">
+                  <div className="h-4 w-36 rounded-md bg-gray-200" />
+                  <div className="h-3 w-56 rounded-md bg-gray-100" />
+                </div>
+              </div>
+            </div>
+            <CardContent className="space-y-4 pt-5">
+              <div className="space-y-2">
+                <div className="h-4 w-24 rounded-md bg-gray-200" />
+                <div className="h-10 w-full rounded-lg bg-gray-100" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="h-4 w-20 rounded-md bg-gray-200" />
+                  <div className="h-10 w-full rounded-lg bg-gray-100" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-24 rounded-md bg-gray-200" />
+                  <div className="h-10 w-full rounded-lg bg-gray-100" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
       </div>
     );
   }
@@ -545,3 +582,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+
