@@ -116,22 +116,20 @@ function App() {
   const [role, setRole] = useState<"super_admin" | "business_admin">("super_admin");
 
   async function refreshSession() {
-    fetch("/api/auth/me")
-      .then(async (res) => {
-        if (!res.ok) {
-          setAuthed(false);
-          setRole("super_admin");
-          return;
-        }
-        const data = await res.json();
-        setAuthed(true);
-        setRole(data?.user?.role === "business_admin" ? "business_admin" : "super_admin");
-      })
-      .catch(() => {
-        if (!mounted) return;
+    try {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) {
         setAuthed(false);
         setRole("super_admin");
-      });
+        return;
+      }
+      const data = await res.json();
+      setAuthed(true);
+      setRole(data?.user?.role === "business_admin" ? "business_admin" : "super_admin");
+    } catch {
+      setAuthed(false);
+      setRole("super_admin");
+    }
   }
 
   useEffect(() => {
