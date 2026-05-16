@@ -72462,7 +72462,8 @@ function handleGuidedMessage(params) {
     return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
   }
   const directMenuSelection = findMenuSelection(text2, menuOptions);
-  if (directMenuSelection) {
+  const shouldUseGlobalMenuSelection = !currentState || currentState === "awaiting_menu_option" || directMenuSelection != null && normalize(directMenuSelection.label) === normalizedText;
+  if (shouldUseGlobalMenuSelection && directMenuSelection) {
     return handleMenuAction(directMenuSelection.action, settings, services);
   }
   if (currentState === "awaiting_menu_option") {

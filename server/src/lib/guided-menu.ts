@@ -389,7 +389,12 @@ export function handleGuidedMessage(params: {
   }
 
   const directMenuSelection = findMenuSelection(text, menuOptions);
-  if (directMenuSelection) {
+  const shouldUseGlobalMenuSelection =
+    !currentState ||
+    currentState === "awaiting_menu_option" ||
+    (directMenuSelection != null && normalize(directMenuSelection.label) === normalizedText);
+
+  if (shouldUseGlobalMenuSelection && directMenuSelection) {
     return handleMenuAction(directMenuSelection.action, settings, services);
   }
 
