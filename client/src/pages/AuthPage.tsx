@@ -96,9 +96,9 @@ export default function AuthPage({ onAuthed }: Props) {
   }
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-white p-2 md:p-3">
+    <div className="h-screen w-full overflow-hidden bg-slate-100 p-0 sm:bg-white sm:p-2 md:p-3">
       <main className="mx-auto flex h-full max-w-[1240px] items-center justify-center overflow-hidden">
-        <section className="grid h-full max-h-[920px] w-full overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_30px_90px_rgba(15,23,42,0.16)] lg:grid-cols-[0.82fr_1.18fr]">
+        <section className="grid h-full max-h-[920px] w-full overflow-hidden rounded-none border-0 bg-white shadow-none sm:rounded-[28px] sm:border sm:border-white/70 sm:shadow-[0_30px_90px_rgba(15,23,42,0.16)] lg:grid-cols-[0.82fr_1.18fr]">
           <div className="relative hidden h-full overflow-hidden rounded-l-[28px] bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 px-9 pt-10 pb-16 text-white lg:block">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_32%,rgba(255,255,255,0.12),transparent_22%),radial-gradient(circle_at_5%_94%,rgba(255,255,255,0.11),transparent_26%)]" />
             <div className="absolute right-12 top-20 h-72 w-72 rounded-full bg-white/10" />
@@ -145,13 +145,13 @@ export default function AuthPage({ onAuthed }: Props) {
             </div>
           </div>
 
-          <div className="flex h-full items-center justify-center overflow-hidden rounded-r-[28px] bg-white/90 px-6 py-6 sm:px-8 lg:px-9">
+          <div className="flex h-full items-center justify-center overflow-hidden rounded-none bg-white/95 px-6 py-7 sm:rounded-r-[28px] sm:bg-white/90 sm:px-8 sm:py-6 lg:px-9">
             <div className="w-full max-w-[520px] py-1">
               <div className="mb-6">
                 <div className="mb-5 flex h-[54px] w-[54px] items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-xl shadow-violet-500/20">
                   <Bot size={24} />
                 </div>
-                <h2 className="text-[3.1rem] font-black leading-[1.05] tracking-tight text-slate-950">
+                <h2 className="text-[2.2rem] font-black leading-[1.08] tracking-tight text-slate-950 sm:text-[3.1rem] sm:leading-[1.05]">
                   {mode === "login" && "Welcome back"}
                   {mode === "forgot" && "Reset password"}
                   {mode === "reset" && "Set new password"}
@@ -167,7 +167,7 @@ export default function AuthPage({ onAuthed }: Props) {
                 {(mode === "login" || mode === "forgot") && (
                   <div>
                     <label className="mb-2 block text-sm font-bold text-slate-900">Email address</label>
-                    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
+                    <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                       <Mail size={18} className="text-slate-400" />
                       <input
                         type="email"
@@ -194,7 +194,7 @@ export default function AuthPage({ onAuthed }: Props) {
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
+                    <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                       <LockKeyhole size={18} className="text-slate-400" />
                       <input
                         type="password"
@@ -211,7 +211,7 @@ export default function AuthPage({ onAuthed }: Props) {
                   <>
                     <div>
                       <label className="mb-2 block text-sm font-bold text-slate-900">Reset token</label>
-                      <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
+                      <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                         <KeyRound size={18} className="text-slate-400" />
                         <input
                           value={token}
@@ -223,7 +223,7 @@ export default function AuthPage({ onAuthed }: Props) {
                     </div>
                     <div>
                       <label className="mb-2 block text-sm font-bold text-slate-900">New password</label>
-                      <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
+                      <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                         <LockKeyhole size={18} className="text-slate-400" />
                         <input
                           type="password"
@@ -236,7 +236,7 @@ export default function AuthPage({ onAuthed }: Props) {
                     </div>
                     <div>
                       <label className="mb-2 block text-sm font-bold text-slate-900">Confirm password</label>
-                      <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
+                      <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-blue-500/10">
                         <LockKeyhole size={18} className="text-slate-400" />
                         <input
                           type="password"
@@ -261,7 +261,7 @@ export default function AuthPage({ onAuthed }: Props) {
                   <button
                     disabled={busy}
                     onClick={submitLogin}
-                    className="mt-2 flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-4 text-[1.85rem] font-black text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50"
+                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-[1.45rem] font-black text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14 sm:text-[1.85rem]"
                   >
                     <LogIn size={19} />
                     Login
@@ -271,7 +271,7 @@ export default function AuthPage({ onAuthed }: Props) {
                   <button
                     disabled={busy}
                     onClick={submitForgot}
-                    className="mt-2 flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 py-4 text-base font-black text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50"
+                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-base font-black text-white shadow-[0_14px_30px_rgba(79,70,229,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14"
                   >
                     <KeyRound size={19} />
                     Send Reset Link
@@ -281,7 +281,7 @@ export default function AuthPage({ onAuthed }: Props) {
                   <button
                     disabled={busy}
                     onClick={submitReset}
-                    className="mt-2 flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-4 text-base font-black text-white shadow-[0_14px_30px_rgba(5,150,105,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50"
+                    className="mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 text-base font-black text-white shadow-[0_14px_30px_rgba(5,150,105,0.35)] transition duration-300 hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 sm:h-14"
                   >
                     <ShieldCheck size={19} />
                     Reset Password
