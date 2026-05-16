@@ -131,9 +131,9 @@ export default function CannedResponsesPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-20 rounded-xl bg-gray-200 animate-pulse" />
+        <div className="space-y-2 min-h-[60vh]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-24 rounded-xl bg-gray-200 animate-pulse" />
           ))}
         </div>
       ) : filtered.length === 0 ? (

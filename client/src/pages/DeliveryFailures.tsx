@@ -205,8 +205,8 @@ export default function DeliveryFailuresPage() {
       )}
 
       {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
+        <div className="space-y-3 min-h-[60vh]">
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-28 rounded-xl bg-gray-100 animate-pulse" />
           ))}
         </div>

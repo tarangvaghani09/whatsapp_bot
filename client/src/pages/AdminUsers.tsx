@@ -226,7 +226,7 @@ export default function AdminUsersPage() {
       )}
 
       {ownersLoading ? (
-        <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 rounded-xl bg-gray-200 animate-pulse" />)}</div>
+        <div className="space-y-3 min-h-[60vh]">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-24 rounded-xl bg-gray-200 animate-pulse" />)}</div>
       ) : owners.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 p-6 text-center text-gray-500 text-sm">No admin users yet.</div>
       ) : (

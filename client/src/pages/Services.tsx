@@ -207,8 +207,8 @@ export default function ServicesPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[60vh]">
+          {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-36 rounded-xl bg-gray-200 animate-pulse" />
           ))}
         </div>

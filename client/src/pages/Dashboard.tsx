@@ -29,10 +29,20 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="h-28 rounded-xl bg-gray-200 animate-pulse" />
-        ))}
+      <div className="space-y-6 min-h-[72vh]">
+        <div className="space-y-2">
+          <div className="h-9 w-52 rounded-lg bg-gray-200 animate-pulse" />
+          <div className="h-5 w-96 rounded-lg bg-gray-100 animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="h-28 rounded-xl bg-gray-200 animate-pulse" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-72 rounded-xl bg-gray-200 animate-pulse" />
+          <div className="h-72 rounded-xl bg-gray-200 animate-pulse" />
+        </div>
       </div>
     );
   }

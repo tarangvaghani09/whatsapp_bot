@@ -419,8 +419,8 @@ export default function BusinessesPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 2 }).map((_, i) => (
+        <div className="space-y-3 min-h-[60vh]">
+          {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-24 rounded-xl bg-gray-200 animate-pulse" />
           ))}
         </div>
@@ -524,8 +524,8 @@ export default function BusinessesPage() {
             </div>
           )}
           {showAdminUsers ? (ownersLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 2 }).map((_, i) => (
+            <div className="space-y-3 min-h-[40vh]">
+              {Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="h-24 rounded-xl bg-gray-200 animate-pulse" />
               ))}
             </div>
