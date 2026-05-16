@@ -72310,6 +72310,25 @@ function withRetryGuard(message, data) {
 
 I didn't get that. Reply with category number (1-5) or type 'menu' to go back.`;
 }
+function shouldAutoCancelFlow(data) {
+  return (data.invalidCount ?? 0) >= 3;
+}
+function autoCancelReply() {
+  return replyResult(
+    "I couldn't understand after multiple tries, so I cancelled this booking flow. Type 'book' to start again or type 'menu' to see options.",
+    "booking",
+    null,
+    null
+  );
+}
+function autoCancelServiceReply() {
+  return replyResult(
+    "I couldn't understand after multiple tries, so I cancelled this flow. Type 'services' to start again or type 'menu' to see options.",
+    "service",
+    null,
+    null
+  );
+}
 function formatDateYmd(date6) {
   const y = date6.getFullYear();
   const m = String(date6.getMonth() + 1).padStart(2, "0");
@@ -72328,16 +72347,27 @@ function parseDateInput(raw) {
     t.setDate(t.getDate() + 1);
     return { ok: true, date: t, normalized: formatDateYmd(t) };
   }
-  const ymd = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const input = raw.trim();
+  const ymd = input.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (ymd) {
-    const date6 = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
-    if (formatDateYmd(date6) === raw.trim()) return { ok: true, date: date6, normalized: formatDateYmd(date6) };
+    const year = Number(ymd[1]);
+    const month = Number(ymd[2]);
+    const day = Number(ymd[3]);
+    const date6 = new Date(year, month - 1, day);
+    if (date6.getFullYear() === year && date6.getMonth() === month - 1 && date6.getDate() === day) {
+      return { ok: true, date: date6, normalized: formatDateYmd(date6) };
+    }
     return { ok: false };
   }
-  const dmy = raw.trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  const dmy = input.match(/^(\d{1,2})[-\/](\d{1,2})(?:[-\/](\d{4}))?$/);
   if (dmy) {
-    const date6 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
-    if (formatDateYmd(date6) === `${dmy[3]}-${dmy[2]}-${dmy[1]}`) return { ok: true, date: date6, normalized: formatDateYmd(date6) };
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = dmy[3] ? Number(dmy[3]) : today.getFullYear();
+    const date6 = new Date(year, month - 1, day);
+    if (date6.getFullYear() === year && date6.getMonth() === month - 1 && date6.getDate() === day) {
+      return { ok: true, date: date6, normalized: formatDateYmd(date6) };
+    }
     return { ok: false };
   }
   return { ok: false };
@@ -72607,7 +72637,21 @@ function handleGuidedMessage(params) {
   if (currentState === "awaiting_menu_option") {
     const selection = directMenuSelection;
     if (!selection) {
-      return null;
+      const nextData = incrementInvalidCount(flowData);
+      if (shouldAutoCancelFlow(nextData)) {
+        return replyResult(
+          "I couldn't understand after multiple tries, so I cancelled this flow. Type 'hi' or 'menu' to start again.",
+          "none",
+          null,
+          null
+        );
+      }
+      return replyResult(
+        withRetryGuard("Please choose an option from the menu (1-5).", nextData),
+        "faq",
+        "awaiting_menu_option",
+        nextData
+      );
     }
     return handleMenuAction(selection.action, settings, services);
   }
@@ -72644,6 +72688,7 @@ function handleGuidedMessage(params) {
     const category = findCategorySelection(text2, categories);
     if (!category) {
       const nextData = incrementInvalidCount({ ...flowData, intent: "services" });
+      if (shouldAutoCancelFlow(nextData)) return autoCancelServiceReply();
       return replyResult(withRetryGuard(buildCategoryPrompt("Choose a service category:", categories), nextData), "service", currentState, nextData);
     }
     const filtered = filterServicesByCategory(services, category);
@@ -72654,6 +72699,7 @@ function handleGuidedMessage(params) {
     const category = findCategorySelection(text2, categories);
     if (!category) {
       const nextData = incrementInvalidCount({ ...flowData, intent: "booking" });
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
       return replyResult(withRetryGuard(buildCategoryPrompt("Choose a booking category:", categories), nextData), "booking", currentState, nextData);
     }
     const filtered = filterServicesByCategory(services, category);
@@ -72669,6 +72715,7 @@ function handleGuidedMessage(params) {
     const selectedService = findServiceSelection(text2, filtered);
     if (!selectedService) {
       const nextData = incrementInvalidCount(flowData);
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
       return replyResult(
         withRetryGuard(buildServiceSelectionPrompt(filtered), nextData),
         "booking",
@@ -72687,8 +72734,9 @@ function handleGuidedMessage(params) {
     const parsedDate = parseDateInput(text2.trim());
     if (!parsedDate.ok) {
       const nextData = incrementInvalidCount(flowData);
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
       return replyResult(
-        withRetryGuard("Please enter a valid date: DD-MM-YYYY, YYYY-MM-DD, today, or tomorrow.", nextData),
+        withRetryGuard("Please enter a valid date: DD-MM, DD-MM-YYYY, YYYY-MM-DD, today, or tomorrow.", nextData),
         "booking",
         "awaiting_booking_date",
         nextData
@@ -72697,6 +72745,7 @@ function handleGuidedMessage(params) {
     const today = startOfDay(/* @__PURE__ */ new Date());
     if (parsedDate.date < today) {
       const nextData = incrementInvalidCount(flowData);
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
       return replyResult(
         withRetryGuard("That date is in the past. Please choose today, tomorrow, or a future date.", nextData),
         "booking",
@@ -72709,6 +72758,7 @@ function handleGuidedMessage(params) {
     const daySchedule = schedule.get(parsedDate.date.getDay());
     if (hasParsedHours && daySchedule === null) {
       const nextData = incrementInvalidCount(flowData);
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
       return replyResult(
         withRetryGuard("We are closed on that day. Please choose another date.", nextData),
         "booking",
@@ -72727,6 +72777,7 @@ function handleGuidedMessage(params) {
     const parsedTime = parseTimeInput(text2.trim());
     if (!parsedTime.ok) {
       const nextData = incrementInvalidCount(flowData);
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
       return replyResult(
         withRetryGuard("Please enter a valid time like 04:00 PM or 16:00.", nextData),
         "booking",
@@ -72737,11 +72788,27 @@ function handleGuidedMessage(params) {
     if (flowData.requestedDate) {
       const date6 = parseDateInput(flowData.requestedDate);
       if (date6.ok) {
+        const today = startOfDay(/* @__PURE__ */ new Date());
+        if (date6.date.getTime() === today.getTime()) {
+          const now = /* @__PURE__ */ new Date();
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          if (parsedTime.minutes <= nowMinutes) {
+            const nextData = incrementInvalidCount(flowData);
+            if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+            return replyResult(
+              withRetryGuard(`That time has already passed for today. Please choose a future time (for example ${minutesToDisplay(nowMinutes + 15)}).`, nextData),
+              "booking",
+              "awaiting_booking_time",
+              nextData
+            );
+          }
+        }
         const schedule = parseBusinessHours(settings.openingHours);
         const hasParsedHours = [...schedule.values()].some((v) => v && typeof v.open === "number" && typeof v.close === "number");
         const daySchedule = schedule.get(date6.date.getDay());
         if (hasParsedHours && daySchedule && (parsedTime.minutes < daySchedule.open || parsedTime.minutes > daySchedule.close)) {
           const nextData = incrementInvalidCount(flowData);
+          if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
           const nearest = parsedTime.minutes < daySchedule.open ? daySchedule.open : daySchedule.close;
           return replyResult(
             withRetryGuard(`That time is outside our opening hours for that day. Please choose between ${minutesToDisplay(daySchedule.open)} and ${minutesToDisplay(daySchedule.close)} (try ${minutesToDisplay(nearest)}).`, nextData),
