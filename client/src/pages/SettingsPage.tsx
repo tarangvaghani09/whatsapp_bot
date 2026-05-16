@@ -66,6 +66,9 @@ type Form = {
   welcomeMenuMessage: string;
   welcomeMenuOptions: string;
   greetingKeywords: string;
+  reminderEnabled: boolean;
+  reminderMinutesBefore: number;
+  reminderMessageTemplate: string;
   paymentMethods: string;
   staffContactMessage: string;
   currency: string;
@@ -86,6 +89,9 @@ const EMPTY: Form = {
   welcomeMenuMessage: "",
   welcomeMenuOptions: "",
   greetingKeywords: "",
+  reminderEnabled: false,
+  reminderMinutesBefore: 60,
+  reminderMessageTemplate: "",
   paymentMethods: "",
   staffContactMessage: "",
   currency: "USD",
@@ -118,6 +124,9 @@ export default function SettingsPage() {
         welcomeMenuMessage: settings.welcomeMenuMessage ?? "",
         welcomeMenuOptions: settings.welcomeMenuOptions ?? "",
         greetingKeywords: settings.greetingKeywords ?? "",
+        reminderEnabled: settings.reminderEnabled ?? false,
+        reminderMinutesBefore: settings.reminderMinutesBefore ?? 60,
+        reminderMessageTemplate: settings.reminderMessageTemplate ?? "",
         paymentMethods: settings.paymentMethods ?? "",
         staffContactMessage: settings.staffContactMessage ?? "",
         currency: settings.currency ?? "USD",
@@ -149,6 +158,9 @@ export default function SettingsPage() {
           welcomeMenuMessage: form.welcomeMenuMessage || undefined,
           welcomeMenuOptions: form.welcomeMenuOptions || undefined,
           greetingKeywords: form.greetingKeywords || undefined,
+          reminderEnabled: form.reminderEnabled,
+          reminderMinutesBefore: form.reminderMinutesBefore,
+          reminderMessageTemplate: form.reminderMessageTemplate || undefined,
           paymentMethods: form.paymentMethods || undefined,
           staffContactMessage: form.staffContactMessage || undefined,
           currency: form.currency || undefined,
@@ -310,7 +322,7 @@ export default function SettingsPage() {
             id="openingHours"
             value={form.openingHours}
             onChange={(e) => set("openingHours", e.target.value)}
-            placeholder={"Mon–Sat: 9:00 AM – 8:00 PM\nSunday: 10:00 AM – 6:00 PM\nPublic Holidays: Closed"}
+            placeholder={"Mon–Fri: 9:00 AM – 8:00 PM\nSat: 10:00 AM - 6:00 PM\nSunday: Closed\nPublic Holidays: Closed"}
             rows={4}
             className="resize-none font-mono text-sm"
           />
@@ -410,6 +422,44 @@ export default function SettingsPage() {
                 rows={3}
                 className="mt-1 resize-none text-sm"
               />
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900">Appointment Reminder</p>
+                  <p className="text-xs text-emerald-700">Send automatic WhatsApp reminder before approved booking time</p>
+                </div>
+                <Switch
+                  checked={form.reminderEnabled}
+                  onCheckedChange={(v) => set("reminderEnabled", v)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reminderMinutesBefore">Minutes Before Appointment</Label>
+                <Input
+                  id="reminderMinutesBefore"
+                  type="number"
+                  min={5}
+                  max={1440}
+                  value={form.reminderMinutesBefore}
+                  onChange={(e) => set("reminderMinutesBefore", Math.max(5, Math.min(1440, Number(e.target.value || 60))))}
+                  disabled={!form.reminderEnabled}
+                />
+                <p className="text-xs text-emerald-700">Example: 60 means reminder will be sent 1 hour before appointment.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="reminderMessageTemplate">Reminder Message Template</Label>
+                <Textarea
+                  id="reminderMessageTemplate"
+                  value={form.reminderMessageTemplate}
+                  onChange={(e) => set("reminderMessageTemplate", e.target.value)}
+                  disabled={!form.reminderEnabled}
+                  rows={3}
+                  className="resize-none text-sm"
+                  placeholder="Reminder: your appointment is on {date} at {time} for {service}. Reply if you need to reschedule."
+                />
+                <p className="text-xs text-emerald-700">Optional. Placeholders: {"{date}"}, {"{time}"}, {"{service}"}, {"{businessName}"}. Leave empty to use default reminder message.</p>
+              </div>
             </div>
           </div>
         </CardContent>

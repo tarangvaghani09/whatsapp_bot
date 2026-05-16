@@ -20,6 +20,8 @@ export const bookingsTable = pgTable(
     status: text("status").notNull().default("pending").$type<"pending" | "approved" | "rejected" | "completed">(),
     rating: integer("rating"),
     ratingAskedAt: timestamp("rating_asked_at", { withTimezone: true }),
+    reminderAt: timestamp("reminder_at", { withTimezone: true }),
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },

@@ -181,6 +181,146 @@ function withRetryGuard(message: string, data: FlowData): string {
   return `${message}\n\nI didn't get that. Reply with category number (1-5) or type 'menu' to go back.`;
 }
 
+function formatDateYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function parseDateInput(raw: string): { ok: true; date: Date; normalized: string } | { ok: false } {
+  const value = raw.trim().toLowerCase();
+  const today = startOfDay(new Date());
+  if (value === "today") return { ok: true, date: today, normalized: formatDateYmd(today) };
+  if (value === "tomorrow") {
+    const t = new Date(today);
+    t.setDate(t.getDate() + 1);
+    return { ok: true, date: t, normalized: formatDateYmd(t) };
+  }
+
+  const ymd = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const date = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    if (formatDateYmd(date) === raw.trim()) return { ok: true, date, normalized: formatDateYmd(date) };
+    return { ok: false };
+  }
+
+  const dmy = raw.trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dmy) {
+    const date = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    if (formatDateYmd(date) === `${dmy[3]}-${dmy[2]}-${dmy[1]}`) return { ok: true, date, normalized: formatDateYmd(date) };
+    return { ok: false };
+  }
+
+  return { ok: false };
+}
+
+function parseTimeInput(raw: string): { ok: true; minutes: number; normalized: string } | { ok: false } {
+  const value = raw.trim().toLowerCase().replace(/\s+/g, "");
+  const m12 = value.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
+  if (m12) {
+    let hour = Number(m12[1]);
+    const minute = Number(m12[2] ?? "00");
+    if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return { ok: false };
+    const meridian = m12[3];
+    let hour24 = hour % 12;
+    if (meridian === "pm") hour24 += 12;
+    const normalized = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${meridian.toUpperCase()}`;
+    return { ok: true, minutes: hour24 * 60 + minute, normalized };
+  }
+
+  const m24 = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (m24) {
+    const hour24 = Number(m24[1]);
+    const minute = Number(m24[2]);
+    if (hour24 < 0 || hour24 > 23 || minute < 0 || minute > 59) return { ok: false };
+    const meridian = hour24 >= 12 ? "PM" : "AM";
+    let hour12 = hour24 % 12;
+    if (hour12 === 0) hour12 = 12;
+    const normalized = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${meridian}`;
+    return { ok: true, minutes: hour24 * 60 + minute, normalized };
+  }
+
+  return { ok: false };
+}
+
+function parseDayToken(token: string): number | null {
+  const t = token.trim().toLowerCase();
+  if (t.startsWith("sun")) return 0;
+  if (t.startsWith("mon")) return 1;
+  if (t.startsWith("tue")) return 2;
+  if (t.startsWith("wed")) return 3;
+  if (t.startsWith("thu")) return 4;
+  if (t.startsWith("fri")) return 5;
+  if (t.startsWith("sat")) return 6;
+  return null;
+}
+
+function parseHourToMinutes(token: string): number | null {
+  const v = token.trim().toLowerCase();
+  const m = v.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2] ?? "00");
+  if (h < 1 || h > 12 || min < 0 || min > 59) return null;
+  let h24 = h % 12;
+  if (m[3] === "pm") h24 += 12;
+  return h24 * 60 + min;
+}
+
+function parseBusinessHours(openingHours: string | null | undefined): Map<number, { open: number; close: number } | null | undefined> {
+  const schedule = new Map<number, { open: number; close: number } | null | undefined>();
+  for (let i = 0; i < 7; i += 1) schedule.set(i, undefined);
+  if (!openingHours?.trim()) return schedule;
+
+  const chunks = openingHours.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
+  for (const chunk of chunks) {
+    const lower = chunk.toLowerCase();
+    if (lower.includes("closed")) {
+      const day = parseDayToken(chunk);
+      if (day != null) schedule.set(day, null);
+      continue;
+    }
+    const dayRange = chunk.match(/(sun|mon|tue|wed|thu|fri|sat)\s*[-–]\s*(sun|mon|tue|wed|thu|fri|sat)/i);
+    const daySingle = chunk.match(/(sun|mon|tue|wed|thu|fri|sat)/i);
+    const timeRange = chunk.match(/(\d{1,2}(?::\d{2})?\s*[ap]m)\s*[-–]\s*(\d{1,2}(?::\d{2})?\s*[ap]m)/i);
+    if (!timeRange) continue;
+    const open = parseHourToMinutes(timeRange[1].replace(/\s+/g, ""));
+    const close = parseHourToMinutes(timeRange[2].replace(/\s+/g, ""));
+    if (open == null || close == null || close <= open) continue;
+
+    if (dayRange) {
+      const start = parseDayToken(dayRange[1]);
+      const end = parseDayToken(dayRange[2]);
+      if (start == null || end == null) continue;
+      for (let d = start; ; d = (d + 1) % 7) {
+        schedule.set(d, { open, close });
+        if (d === end) break;
+      }
+      continue;
+    }
+
+    if (daySingle) {
+      const day = parseDayToken(daySingle[1]);
+      if (day != null) schedule.set(day, { open, close });
+    }
+  }
+  return schedule;
+}
+
+function minutesToDisplay(minutes: number): string {
+  const m = minutes % 60;
+  const h24 = Math.floor(minutes / 60);
+  const meridian = h24 >= 12 ? "PM" : "AM";
+  let h12 = h24 % 12;
+  if (h12 === 0) h12 = 12;
+  return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${meridian}`;
+}
+
 function findMenuSelection(text: string, options: MenuOption[]): MenuOption | null {
   const trimmed = text.trim();
   const num = Number(trimmed);
@@ -484,20 +624,80 @@ export function handleGuidedMessage(params: {
   }
 
   if (currentState === "awaiting_booking_date") {
+    const parsedDate = parseDateInput(text.trim());
+    if (!parsedDate.ok) {
+      const nextData = incrementInvalidCount(flowData);
+      return replyResult(
+        withRetryGuard("Please enter a valid date: DD-MM-YYYY, YYYY-MM-DD, today, or tomorrow.", nextData),
+        "booking",
+        "awaiting_booking_date",
+        nextData,
+      );
+    }
+    const today = startOfDay(new Date());
+    if (parsedDate.date < today) {
+      const nextData = incrementInvalidCount(flowData);
+      return replyResult(
+        withRetryGuard("That date is in the past. Please choose today, tomorrow, or a future date.", nextData),
+        "booking",
+        "awaiting_booking_date",
+        nextData,
+      );
+    }
+    const schedule = parseBusinessHours(settings.openingHours);
+    const hasParsedHours = [...schedule.values()].some((v) => v && typeof v.open === "number" && typeof v.close === "number");
+    const daySchedule = schedule.get(parsedDate.date.getDay());
+    if (hasParsedHours && daySchedule === null) {
+      const nextData = incrementInvalidCount(flowData);
+      return replyResult(
+        withRetryGuard("We are closed on that day. Please choose another date.", nextData),
+        "booking",
+        "awaiting_booking_date",
+        nextData,
+      );
+    }
     return replyResult(
       "Please send your preferred time.",
       "booking",
       "awaiting_booking_time",
-      resetInvalidCount({ ...flowData, requestedDate: text.trim() }),
+      resetInvalidCount({ ...flowData, requestedDate: parsedDate.normalized }),
     );
   }
 
   if (currentState === "awaiting_booking_time") {
+    const parsedTime = parseTimeInput(text.trim());
+    if (!parsedTime.ok) {
+      const nextData = incrementInvalidCount(flowData);
+      return replyResult(
+        withRetryGuard("Please enter a valid time like 04:00 PM or 16:00.", nextData),
+        "booking",
+        "awaiting_booking_time",
+        nextData,
+      );
+    }
+    if (flowData.requestedDate) {
+      const date = parseDateInput(flowData.requestedDate);
+      if (date.ok) {
+        const schedule = parseBusinessHours(settings.openingHours);
+        const hasParsedHours = [...schedule.values()].some((v) => v && typeof v.open === "number" && typeof v.close === "number");
+        const daySchedule = schedule.get(date.date.getDay());
+        if (hasParsedHours && daySchedule && (parsedTime.minutes < daySchedule.open || parsedTime.minutes > daySchedule.close)) {
+          const nextData = incrementInvalidCount(flowData);
+          const nearest = parsedTime.minutes < daySchedule.open ? daySchedule.open : daySchedule.close;
+          return replyResult(
+            withRetryGuard(`That time is outside our opening hours for that day. Please choose between ${minutesToDisplay(daySchedule.open)} and ${minutesToDisplay(daySchedule.close)} (try ${minutesToDisplay(nearest)}).`, nextData),
+            "booking",
+            "awaiting_booking_time",
+            nextData,
+          );
+        }
+      }
+    }
     return replyResult(
       "Please send your name.",
       "booking",
       "awaiting_booking_name",
-      resetInvalidCount({ ...flowData, requestedDate: flowData.requestedDate, requestedTime: text.trim() }),
+      resetInvalidCount({ ...flowData, requestedDate: flowData.requestedDate, requestedTime: parsedTime.normalized }),
     );
   }
 

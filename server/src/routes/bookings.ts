@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, bookingsTable, customersTable, businessesTable, botMessagesTable } from "@workspace/db";
+import { db, bookingsTable, customersTable, businessesTable, botMessagesTable, settingsTable } from "@workspace/db";
 import { eq, and, desc, count, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -13,6 +13,7 @@ import { BusinessIdQueryParam, resolveBusinessId } from "../lib/resolve-business
 import { sendWhatsAppMessage, type BusinessCreds } from "../lib/whatsapp";
 import { logger } from "../lib/logger";
 import { decryptSecret } from "../lib/secrets";
+import { parseAppointmentDateTime } from "../lib/appointment-time";
 
 const router: IRouter = Router();
 
@@ -120,6 +121,17 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
 
   if (parsed.data.status === "approved" && booking.customerId) {
     try {
+      const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
+      const apptDateTime = parseAppointmentDateTime(booking.requestedDate, booking.requestedTime);
+      const reminderEnabled = settings?.reminderEnabled ?? false;
+      const reminderMinutesBefore = settings?.reminderMinutesBefore ?? 60;
+      if (reminderEnabled && apptDateTime) {
+        const reminderAt = new Date(apptDateTime.getTime() - reminderMinutesBefore * 60 * 1000);
+        await db.update(bookingsTable)
+          .set({ reminderAt, reminderSentAt: null })
+          .where(eq(bookingsTable.id, booking.id));
+      }
+
       const [customer] = await db.select().from(customersTable)
         .where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
       const [business] = await db.select().from(businessesTable)
@@ -259,8 +271,16 @@ router.post("/bookings/:id/reschedule", async (req, res): Promise<void> => {
 
   const { requestedDate, requestedTime } = parsed.data;
 
+  const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
+  const apptDateTime = parseAppointmentDateTime(requestedDate, requestedTime);
+  const reminderEnabled = settings?.reminderEnabled ?? false;
+  const reminderMinutesBefore = settings?.reminderMinutesBefore ?? 60;
+  const reminderAt = reminderEnabled && apptDateTime
+    ? new Date(apptDateTime.getTime() - reminderMinutesBefore * 60 * 1000)
+    : null;
+
   const [booking] = await db.update(bookingsTable)
-    .set({ requestedDate, requestedTime })
+    .set({ requestedDate, requestedTime, reminderAt, reminderSentAt: null })
     .where(and(eq(bookingsTable.id, id), eq(bookingsTable.businessId, businessId)))
     .returning();
 

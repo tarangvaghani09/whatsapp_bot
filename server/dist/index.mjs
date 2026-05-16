@@ -32600,7 +32600,7 @@ var require_postgres_date = __commonJS({
     var DATE = /^(\d{1,})-(\d{2})-(\d{2})( BC)?$/;
     var TIME_ZONE = /([Z+-])(\d{2})?:?(\d{2})?:?(\d{2})?/;
     var INFINITY2 = /^-?infinity$/;
-    module.exports = function parseDate(isoDate) {
+    module.exports = function parseDate2(isoDate) {
       if (INFINITY2.test(isoDate)) {
         return Number(isoDate.replace("i", "I"));
       }
@@ -32830,7 +32830,7 @@ var require_textParsers = __commonJS({
   "../node_modules/.pnpm/pg-types@2.2.0/node_modules/pg-types/lib/textParsers.js"(exports, module) {
     var array2 = require_postgres_array();
     var arrayParser = require_arrayParser();
-    var parseDate = require_postgres_date();
+    var parseDate2 = require_postgres_date();
     var parseInterval = require_postgres_interval();
     var parseByteA = require_postgres_bytea();
     function allowNull(fn) {
@@ -32897,7 +32897,7 @@ var require_textParsers = __commonJS({
       }
       var p = arrayParser.create(value, function(entry) {
         if (entry !== null) {
-          entry = parseDate(entry);
+          entry = parseDate2(entry);
         }
         return entry;
       });
@@ -32981,9 +32981,9 @@ var require_textParsers = __commonJS({
       register(700, parseFloat);
       register(701, parseFloat);
       register(16, parseBool);
-      register(1082, parseDate);
-      register(1114, parseDate);
-      register(1184, parseDate);
+      register(1082, parseDate2);
+      register(1114, parseDate2);
+      register(1184, parseDate2);
       register(600, parsePoint);
       register(651, parseStringArray);
       register(718, parseCircle);
@@ -33208,7 +33208,7 @@ var require_binaryParsers = __commonJS({
       var scale = Math.pow(10, parseBits(value, 16, 48));
       return (sign === 0 ? 1 : -1) * Math.round(result * scale) / scale;
     };
-    var parseDate = function(isUTC, value) {
+    var parseDate2 = function(isUTC, value) {
       var sign = parseBits(value, 1);
       var rawValue = parseBits(value, 63, 1);
       var result = new Date((sign === 0 ? 1 : -1) * rawValue / 1e3 + 9466848e5);
@@ -33290,8 +33290,8 @@ var require_binaryParsers = __commonJS({
       register(700, parseFloat32);
       register(701, parseFloat64);
       register(16, parseBool);
-      register(1114, parseDate.bind(null, false));
-      register(1184, parseDate.bind(null, true));
+      register(1114, parseDate2.bind(null, false));
+      register(1184, parseDate2.bind(null, true));
       register(1e3, parseArray);
       register(1007, parseArray);
       register(1016, parseArray);
@@ -49036,8 +49036,8 @@ var $ZodDate = /* @__PURE__ */ $constructor("$ZodDate", (inst, def) => {
     }
     const input = payload.value;
     const isDate = input instanceof Date;
-    const isValidDate = isDate && !Number.isNaN(input.getTime());
-    if (isValidDate)
+    const isValidDate2 = isDate && !Number.isNaN(input.getTime());
+    if (isValidDate2)
       return payload;
     payload.issues.push({
       expected: "date",
@@ -58063,6 +58063,8 @@ var bookingsTable = pgTable(
     status: text("status").notNull().default("pending").$type(),
     rating: integer("rating"),
     ratingAskedAt: timestamp("rating_asked_at", { withTimezone: true }),
+    reminderAt: timestamp("reminder_at", { withTimezone: true }),
+    reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => /* @__PURE__ */ new Date())
   },
@@ -58110,6 +58112,9 @@ var settingsTable = pgTable("settings", {
   welcomeMenuMessage: text("welcome_menu_message"),
   welcomeMenuOptions: text("welcome_menu_options"),
   greetingKeywords: text("greeting_keywords"),
+  reminderEnabled: boolean("reminder_enabled").notNull().default(false),
+  reminderMinutesBefore: integer("reminder_minutes_before").notNull().default(60),
+  reminderMessageTemplate: text("reminder_message_template"),
   paymentMethods: text("payment_methods"),
   staffContactMessage: text("staff_contact_message"),
   currency: text("currency").notNull().default("USD"),
@@ -62750,6 +62755,9 @@ var GetSettingsResponse = objectType({
   "welcomeMenuMessage": stringType().nullable(),
   "welcomeMenuOptions": stringType().nullable(),
   "greetingKeywords": stringType().nullable(),
+  "reminderEnabled": booleanType(),
+  "reminderMinutesBefore": numberType(),
+  "reminderMessageTemplate": stringType().nullable(),
   "paymentMethods": stringType().nullable(),
   "staffContactMessage": stringType().nullable(),
   "currency": stringType(),
@@ -62773,6 +62781,9 @@ var UpdateSettingsBody = objectType({
   "welcomeMenuMessage": stringType().optional(),
   "welcomeMenuOptions": stringType().optional(),
   "greetingKeywords": stringType().optional(),
+  "reminderEnabled": booleanType().optional(),
+  "reminderMinutesBefore": numberType().optional(),
+  "reminderMessageTemplate": stringType().optional(),
   "paymentMethods": stringType().optional(),
   "staffContactMessage": stringType().optional(),
   "currency": stringType().optional(),
@@ -62793,6 +62804,9 @@ var UpdateSettingsResponse = objectType({
   "welcomeMenuMessage": stringType().nullable(),
   "welcomeMenuOptions": stringType().nullable(),
   "greetingKeywords": stringType().nullable(),
+  "reminderEnabled": booleanType(),
+  "reminderMinutesBefore": numberType(),
+  "reminderMessageTemplate": stringType().nullable(),
   "paymentMethods": stringType().nullable(),
   "staffContactMessage": stringType().nullable(),
   "currency": stringType(),
@@ -72296,6 +72310,130 @@ function withRetryGuard(message, data) {
 
 I didn't get that. Reply with category number (1-5) or type 'menu' to go back.`;
 }
+function formatDateYmd(date6) {
+  const y = date6.getFullYear();
+  const m = String(date6.getMonth() + 1).padStart(2, "0");
+  const d = String(date6.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function startOfDay(date6) {
+  return new Date(date6.getFullYear(), date6.getMonth(), date6.getDate());
+}
+function parseDateInput(raw) {
+  const value = raw.trim().toLowerCase();
+  const today = startOfDay(/* @__PURE__ */ new Date());
+  if (value === "today") return { ok: true, date: today, normalized: formatDateYmd(today) };
+  if (value === "tomorrow") {
+    const t = new Date(today);
+    t.setDate(t.getDate() + 1);
+    return { ok: true, date: t, normalized: formatDateYmd(t) };
+  }
+  const ymd = raw.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const date6 = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+    if (formatDateYmd(date6) === raw.trim()) return { ok: true, date: date6, normalized: formatDateYmd(date6) };
+    return { ok: false };
+  }
+  const dmy = raw.trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dmy) {
+    const date6 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    if (formatDateYmd(date6) === `${dmy[3]}-${dmy[2]}-${dmy[1]}`) return { ok: true, date: date6, normalized: formatDateYmd(date6) };
+    return { ok: false };
+  }
+  return { ok: false };
+}
+function parseTimeInput(raw) {
+  const value = raw.trim().toLowerCase().replace(/\s+/g, "");
+  const m12 = value.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
+  if (m12) {
+    let hour = Number(m12[1]);
+    const minute = Number(m12[2] ?? "00");
+    if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return { ok: false };
+    const meridian = m12[3];
+    let hour24 = hour % 12;
+    if (meridian === "pm") hour24 += 12;
+    const normalized = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${meridian.toUpperCase()}`;
+    return { ok: true, minutes: hour24 * 60 + minute, normalized };
+  }
+  const m24 = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (m24) {
+    const hour24 = Number(m24[1]);
+    const minute = Number(m24[2]);
+    if (hour24 < 0 || hour24 > 23 || minute < 0 || minute > 59) return { ok: false };
+    const meridian = hour24 >= 12 ? "PM" : "AM";
+    let hour12 = hour24 % 12;
+    if (hour12 === 0) hour12 = 12;
+    const normalized = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${meridian}`;
+    return { ok: true, minutes: hour24 * 60 + minute, normalized };
+  }
+  return { ok: false };
+}
+function parseDayToken(token) {
+  const t = token.trim().toLowerCase();
+  if (t.startsWith("sun")) return 0;
+  if (t.startsWith("mon")) return 1;
+  if (t.startsWith("tue")) return 2;
+  if (t.startsWith("wed")) return 3;
+  if (t.startsWith("thu")) return 4;
+  if (t.startsWith("fri")) return 5;
+  if (t.startsWith("sat")) return 6;
+  return null;
+}
+function parseHourToMinutes(token) {
+  const v = token.trim().toLowerCase();
+  const m = v.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2] ?? "00");
+  if (h < 1 || h > 12 || min < 0 || min > 59) return null;
+  let h24 = h % 12;
+  if (m[3] === "pm") h24 += 12;
+  return h24 * 60 + min;
+}
+function parseBusinessHours(openingHours) {
+  const schedule = /* @__PURE__ */ new Map();
+  for (let i = 0; i < 7; i += 1) schedule.set(i, void 0);
+  if (!openingHours?.trim()) return schedule;
+  const chunks = openingHours.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
+  for (const chunk of chunks) {
+    const lower = chunk.toLowerCase();
+    if (lower.includes("closed")) {
+      const day = parseDayToken(chunk);
+      if (day != null) schedule.set(day, null);
+      continue;
+    }
+    const dayRange = chunk.match(/(sun|mon|tue|wed|thu|fri|sat)\s*[-–]\s*(sun|mon|tue|wed|thu|fri|sat)/i);
+    const daySingle = chunk.match(/(sun|mon|tue|wed|thu|fri|sat)/i);
+    const timeRange = chunk.match(/(\d{1,2}(?::\d{2})?\s*[ap]m)\s*[-–]\s*(\d{1,2}(?::\d{2})?\s*[ap]m)/i);
+    if (!timeRange) continue;
+    const open = parseHourToMinutes(timeRange[1].replace(/\s+/g, ""));
+    const close = parseHourToMinutes(timeRange[2].replace(/\s+/g, ""));
+    if (open == null || close == null || close <= open) continue;
+    if (dayRange) {
+      const start = parseDayToken(dayRange[1]);
+      const end = parseDayToken(dayRange[2]);
+      if (start == null || end == null) continue;
+      for (let d = start; ; d = (d + 1) % 7) {
+        schedule.set(d, { open, close });
+        if (d === end) break;
+      }
+      continue;
+    }
+    if (daySingle) {
+      const day = parseDayToken(daySingle[1]);
+      if (day != null) schedule.set(day, { open, close });
+    }
+  }
+  return schedule;
+}
+function minutesToDisplay(minutes) {
+  const m = minutes % 60;
+  const h24 = Math.floor(minutes / 60);
+  const meridian = h24 >= 12 ? "PM" : "AM";
+  let h12 = h24 % 12;
+  if (h12 === 0) h12 = 12;
+  return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${meridian}`;
+}
 function findMenuSelection(text2, options) {
   const trimmed = text2.trim();
   const num = Number(trimmed);
@@ -72546,19 +72684,79 @@ function handleGuidedMessage(params) {
     );
   }
   if (currentState === "awaiting_booking_date") {
+    const parsedDate = parseDateInput(text2.trim());
+    if (!parsedDate.ok) {
+      const nextData = incrementInvalidCount(flowData);
+      return replyResult(
+        withRetryGuard("Please enter a valid date: DD-MM-YYYY, YYYY-MM-DD, today, or tomorrow.", nextData),
+        "booking",
+        "awaiting_booking_date",
+        nextData
+      );
+    }
+    const today = startOfDay(/* @__PURE__ */ new Date());
+    if (parsedDate.date < today) {
+      const nextData = incrementInvalidCount(flowData);
+      return replyResult(
+        withRetryGuard("That date is in the past. Please choose today, tomorrow, or a future date.", nextData),
+        "booking",
+        "awaiting_booking_date",
+        nextData
+      );
+    }
+    const schedule = parseBusinessHours(settings.openingHours);
+    const hasParsedHours = [...schedule.values()].some((v) => v && typeof v.open === "number" && typeof v.close === "number");
+    const daySchedule = schedule.get(parsedDate.date.getDay());
+    if (hasParsedHours && daySchedule === null) {
+      const nextData = incrementInvalidCount(flowData);
+      return replyResult(
+        withRetryGuard("We are closed on that day. Please choose another date.", nextData),
+        "booking",
+        "awaiting_booking_date",
+        nextData
+      );
+    }
     return replyResult(
       "Please send your preferred time.",
       "booking",
       "awaiting_booking_time",
-      resetInvalidCount({ ...flowData, requestedDate: text2.trim() })
+      resetInvalidCount({ ...flowData, requestedDate: parsedDate.normalized })
     );
   }
   if (currentState === "awaiting_booking_time") {
+    const parsedTime = parseTimeInput(text2.trim());
+    if (!parsedTime.ok) {
+      const nextData = incrementInvalidCount(flowData);
+      return replyResult(
+        withRetryGuard("Please enter a valid time like 04:00 PM or 16:00.", nextData),
+        "booking",
+        "awaiting_booking_time",
+        nextData
+      );
+    }
+    if (flowData.requestedDate) {
+      const date6 = parseDateInput(flowData.requestedDate);
+      if (date6.ok) {
+        const schedule = parseBusinessHours(settings.openingHours);
+        const hasParsedHours = [...schedule.values()].some((v) => v && typeof v.open === "number" && typeof v.close === "number");
+        const daySchedule = schedule.get(date6.date.getDay());
+        if (hasParsedHours && daySchedule && (parsedTime.minutes < daySchedule.open || parsedTime.minutes > daySchedule.close)) {
+          const nextData = incrementInvalidCount(flowData);
+          const nearest = parsedTime.minutes < daySchedule.open ? daySchedule.open : daySchedule.close;
+          return replyResult(
+            withRetryGuard(`That time is outside our opening hours for that day. Please choose between ${minutesToDisplay(daySchedule.open)} and ${minutesToDisplay(daySchedule.close)} (try ${minutesToDisplay(nearest)}).`, nextData),
+            "booking",
+            "awaiting_booking_time",
+            nextData
+          );
+        }
+      }
+    }
     return replyResult(
       "Please send your name.",
       "booking",
       "awaiting_booking_name",
-      resetInvalidCount({ ...flowData, requestedDate: flowData.requestedDate, requestedTime: text2.trim() })
+      resetInvalidCount({ ...flowData, requestedDate: flowData.requestedDate, requestedTime: parsedTime.normalized })
     );
   }
   if (currentState === "awaiting_booking_name") {
@@ -73613,6 +73811,76 @@ var services_default = router6;
 
 // src/routes/bookings.ts
 var import_express7 = __toESM(require_express2(), 1);
+
+// src/lib/appointment-time.ts
+function parseAppointmentDateTime(requestedDate, requestedTime) {
+  if (!requestedDate || !requestedTime) return null;
+  const date6 = parseDate(requestedDate.trim());
+  const time4 = parseTime(requestedTime.trim());
+  if (!date6 || !time4) return null;
+  return new Date(
+    date6.year,
+    date6.month - 1,
+    date6.day,
+    time4.hour24,
+    time4.minute,
+    0,
+    0
+  );
+}
+function parseDate(value) {
+  const ymd = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    const year = Number(ymd[1]);
+    const month = Number(ymd[2]);
+    const day = Number(ymd[3]);
+    if (!isValidDate(year, month, day)) return null;
+    return { year, month, day };
+  }
+  const dmy = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    if (!isValidDate(year, month, day)) return null;
+    return { year, month, day };
+  }
+  return null;
+}
+function isValidDate(year, month, day) {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const d = new Date(year, month - 1, day);
+  return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+}
+function parseTime(value) {
+  const clean = value.toLowerCase().replace(/\s+/g, "");
+  const m12 = clean.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
+  if (m12) {
+    const h = Number(m12[1]);
+    const min = Number(m12[2] ?? "00");
+    if (h < 1 || h > 12 || min < 0 || min > 59) return null;
+    let hour24 = h % 12;
+    if (m12[3] === "pm") hour24 += 12;
+    return { hour24, minute: min };
+  }
+  const m24 = clean.match(/^(\d{1,2}):(\d{2})$/);
+  if (m24) {
+    const hour24 = Number(m24[1]);
+    const minute = Number(m24[2]);
+    if (hour24 < 0 || hour24 > 23 || minute < 0 || minute > 59) return null;
+    return { hour24, minute };
+  }
+  return null;
+}
+function formatDisplayTime(date6) {
+  const minute = String(date6.getMinutes()).padStart(2, "0");
+  const meridian = date6.getHours() >= 12 ? "PM" : "AM";
+  let hour = date6.getHours() % 12;
+  if (hour === 0) hour = 12;
+  return `${hour}:${minute} ${meridian}`;
+}
+
+// src/routes/bookings.ts
 var router7 = (0, import_express7.Router)();
 router7.get("/bookings", async (req, res) => {
   const q = BusinessIdQueryParam.safeParse(req.query);
@@ -73689,6 +73957,14 @@ router7.patch("/bookings/:id", async (req, res) => {
   res.json(booking);
   if (parsed.data.status === "approved" && booking.customerId) {
     try {
+      const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
+      const apptDateTime = parseAppointmentDateTime(booking.requestedDate, booking.requestedTime);
+      const reminderEnabled = settings?.reminderEnabled ?? false;
+      const reminderMinutesBefore = settings?.reminderMinutesBefore ?? 60;
+      if (reminderEnabled && apptDateTime) {
+        const reminderAt = new Date(apptDateTime.getTime() - reminderMinutesBefore * 60 * 1e3);
+        await db.update(bookingsTable).set({ reminderAt, reminderSentAt: null }).where(eq(bookingsTable.id, booking.id));
+      }
       const [customer] = await db.select().from(customersTable).where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, businessId))).limit(1);
       const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId)).limit(1);
       if (customer?.phone && business) {
@@ -73802,7 +74078,12 @@ router7.post("/bookings/:id/reschedule", async (req, res) => {
     return;
   }
   const { requestedDate, requestedTime } = parsed.data;
-  const [booking] = await db.update(bookingsTable).set({ requestedDate, requestedTime }).where(and(eq(bookingsTable.id, id), eq(bookingsTable.businessId, businessId))).returning();
+  const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
+  const apptDateTime = parseAppointmentDateTime(requestedDate, requestedTime);
+  const reminderEnabled = settings?.reminderEnabled ?? false;
+  const reminderMinutesBefore = settings?.reminderMinutesBefore ?? 60;
+  const reminderAt = reminderEnabled && apptDateTime ? new Date(apptDateTime.getTime() - reminderMinutesBefore * 60 * 1e3) : null;
+  const [booking] = await db.update(bookingsTable).set({ requestedDate, requestedTime, reminderAt, reminderSentAt: null }).where(and(eq(bookingsTable.id, id), eq(bookingsTable.businessId, businessId))).returning();
   if (!booking) {
     res.status(404).json({ error: "Booking not found" });
     return;
@@ -74820,6 +75101,86 @@ app.use((err, _req, res, _next) => {
 });
 var app_default = app;
 
+// src/lib/booking-reminder-worker.ts
+var timer = null;
+var running = false;
+function buildReminderMessage(params) {
+  const { template, dateText, timeText, serviceText, businessName } = params;
+  const trimmed = template?.trim();
+  if (!trimmed) {
+    return `Reminder: your appointment is on ${dateText} at ${timeText} for ${serviceText}. Reply if you need to reschedule.`;
+  }
+  return trimmed.replaceAll("{date}", dateText).replaceAll("{time}", timeText).replaceAll("{service}", serviceText).replaceAll("{businessName}", businessName);
+}
+async function processDueReminders() {
+  if (running) return;
+  running = true;
+  try {
+    const due = await db.select({
+      id: bookingsTable.id,
+      businessId: bookingsTable.businessId,
+      customerId: bookingsTable.customerId,
+      service: bookingsTable.service,
+      requestedDate: bookingsTable.requestedDate,
+      requestedTime: bookingsTable.requestedTime,
+      reminderAt: bookingsTable.reminderAt
+    }).from(bookingsTable).where(
+      and(
+        eq(bookingsTable.status, "approved"),
+        isNotNull(bookingsTable.reminderAt),
+        isNull(bookingsTable.reminderSentAt),
+        lte(bookingsTable.reminderAt, /* @__PURE__ */ new Date())
+      )
+    ).limit(100);
+    for (const booking of due) {
+      try {
+        const [customer] = await db.select().from(customersTable).where(and(eq(customersTable.id, booking.customerId), eq(customersTable.businessId, booking.businessId))).limit(1);
+        const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, booking.businessId)).limit(1);
+        const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.businessId, booking.businessId)).limit(1);
+        if (!customer?.phone || !business) {
+          await db.update(bookingsTable).set({ reminderSentAt: /* @__PURE__ */ new Date() }).where(eq(bookingsTable.id, booking.id));
+          continue;
+        }
+        const appt = parseAppointmentDateTime(booking.requestedDate, booking.requestedTime);
+        const timeText = appt ? formatDisplayTime(appt) : booking.requestedTime ?? "your scheduled time";
+        const dateText = booking.requestedDate ?? "today";
+        const serviceText = booking.service ?? "your service";
+        const message = buildReminderMessage({
+          template: settings?.reminderMessageTemplate,
+          dateText,
+          timeText,
+          serviceText,
+          businessName: business.name
+        });
+        const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
+        await sendWhatsAppMessage(customer.phone, message, creds);
+        await db.insert(botMessagesTable).values({
+          customerId: customer.id,
+          businessId: booking.businessId,
+          direction: "outbound",
+          content: message,
+          replyType: "booking"
+        });
+        await db.update(bookingsTable).set({ reminderSentAt: /* @__PURE__ */ new Date() }).where(eq(bookingsTable.id, booking.id));
+      } catch (err) {
+        logger.error({ err, bookingId: booking.id }, "Failed to send booking reminder");
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Booking reminder worker failed");
+  } finally {
+    running = false;
+  }
+}
+function startBookingReminderWorker() {
+  if (timer) return;
+  timer = setInterval(() => {
+    void processDueReminders();
+  }, 6e4);
+  void processDueReminders();
+  logger.info("Booking reminder worker started");
+}
+
 // src/index.ts
 var rawPort = process.env["PORT"];
 if (!rawPort) {
@@ -74837,6 +75198,7 @@ app_default.listen(port, (err) => {
     process.exit(1);
   }
   logger.info({ port }, "Server listening");
+  startBookingReminderWorker();
 });
 /*! Bundled license information:
 
