@@ -321,6 +321,8 @@ export interface BusinessSettings {
   welcomeMenuOptions: string | null;
   /** @nullable */
   greetingKeywords: string | null;
+  /** @nullable */
+  bookingFlowCancelMessage: string | null;
   reminderEnabled: boolean;
   reminderMinutesBefore: number;
   /** @nullable */
@@ -349,6 +351,7 @@ export interface UpdateSettingsBody {
   welcomeMenuMessage?: string;
   welcomeMenuOptions?: string;
   greetingKeywords?: string;
+  bookingFlowCancelMessage?: string;
   reminderEnabled?: boolean;
   reminderMinutesBefore?: number;
   reminderMessageTemplate?: string;

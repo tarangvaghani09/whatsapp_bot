@@ -40,6 +40,7 @@ type GuidedSettings = {
   email?: string | null;
   paymentMethods?: string | null;
   staffContactMessage?: string | null;
+  bookingFlowCancelMessage?: string | null;
   welcomeMenuMessage?: string | null;
   welcomeMenuOptions?: string | null;
   greetingKeywords?: string | null;
@@ -185,18 +186,26 @@ function shouldAutoCancelFlow(data: FlowData): boolean {
   return (data.invalidCount ?? 0) >= 3;
 }
 
-function autoCancelReply(): GuidedReplyResult {
+function autoCancelReply(settings?: GuidedSettings): GuidedReplyResult {
+  const custom = settings?.bookingFlowCancelMessage?.trim();
+  const reply = custom && custom.length > 0
+    ? custom
+    : "I couldn't understand after multiple tries, so I cancelled this booking flow. Type 'book' to start again or type 'menu' to see options.";
   return replyResult(
-    "I couldn't understand after multiple tries, so I cancelled this booking flow. Type 'book' to start again or type 'menu' to see options.",
+    reply,
     "booking",
     null,
     null,
   );
 }
 
-function autoCancelServiceReply(): GuidedReplyResult {
+function autoCancelServiceReply(settings?: GuidedSettings): GuidedReplyResult {
+  const custom = settings?.bookingFlowCancelMessage?.trim();
+  const reply = custom && custom.length > 0
+    ? custom
+    : "I couldn't understand after multiple tries, so I cancelled this flow. Type 'services' to start again or type 'menu' to see options.";
   return replyResult(
-    "I couldn't understand after multiple tries, so I cancelled this flow. Type 'services' to start again or type 'menu' to see options.",
+    reply,
     "service",
     null,
     null,
@@ -578,7 +587,7 @@ export function handleGuidedMessage(params: {
       const nextData = incrementInvalidCount(flowData);
       if (shouldAutoCancelFlow(nextData)) {
         return replyResult(
-          "I couldn't understand after multiple tries, so I cancelled this flow. Type 'hi' or 'menu' to start again.",
+          settings.bookingFlowCancelMessage?.trim() || "I couldn't understand after multiple tries, so I cancelled this flow. Type 'hi' or 'menu' to start again.",
           "none",
           null,
           null,
@@ -629,7 +638,7 @@ export function handleGuidedMessage(params: {
     const category = findCategorySelection(text, categories);
     if (!category) {
       const nextData = incrementInvalidCount({ ...flowData, intent: "services" });
-      if (shouldAutoCancelFlow(nextData)) return autoCancelServiceReply();
+      if (shouldAutoCancelFlow(nextData)) return autoCancelServiceReply(settings);
       return replyResult(withRetryGuard(buildCategoryPrompt("Choose a service category:", categories), nextData), "service", currentState, nextData);
     }
     const filtered = filterServicesByCategory(services, category);
@@ -641,7 +650,7 @@ export function handleGuidedMessage(params: {
     const category = findCategorySelection(text, categories);
     if (!category) {
       const nextData = incrementInvalidCount({ ...flowData, intent: "booking" });
-      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(withRetryGuard(buildCategoryPrompt("Choose a booking category:", categories), nextData), "booking", currentState, nextData);
     }
     const filtered = filterServicesByCategory(services, category);
@@ -658,7 +667,7 @@ export function handleGuidedMessage(params: {
     const selectedService = findServiceSelection(text, filtered);
     if (!selectedService) {
       const nextData = incrementInvalidCount(flowData);
-      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(
         withRetryGuard(buildServiceSelectionPrompt(filtered), nextData),
         "booking",
@@ -678,7 +687,7 @@ export function handleGuidedMessage(params: {
     const parsedDate = parseDateInput(text.trim());
     if (!parsedDate.ok) {
       const nextData = incrementInvalidCount(flowData);
-      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(
         withRetryGuard("Please enter a valid date: DD-MM, DD-MM-YYYY, YYYY-MM-DD, today, or tomorrow.", nextData),
         "booking",
@@ -689,7 +698,7 @@ export function handleGuidedMessage(params: {
     const today = startOfDay(new Date());
     if (parsedDate.date < today) {
       const nextData = incrementInvalidCount(flowData);
-      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(
         withRetryGuard("That date is in the past. Please choose today, tomorrow, or a future date.", nextData),
         "booking",
@@ -702,7 +711,7 @@ export function handleGuidedMessage(params: {
     const daySchedule = schedule.get(parsedDate.date.getDay());
     if (hasParsedHours && daySchedule === null) {
       const nextData = incrementInvalidCount(flowData);
-      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(
         withRetryGuard("We are closed on that day. Please choose another date.", nextData),
         "booking",
@@ -722,7 +731,7 @@ export function handleGuidedMessage(params: {
     const parsedTime = parseTimeInput(text.trim());
     if (!parsedTime.ok) {
       const nextData = incrementInvalidCount(flowData);
-      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(
         withRetryGuard("Please enter a valid time like 04:00 PM or 16:00.", nextData),
         "booking",
@@ -739,7 +748,7 @@ export function handleGuidedMessage(params: {
           const nowMinutes = now.getHours() * 60 + now.getMinutes();
           if (parsedTime.minutes <= nowMinutes) {
             const nextData = incrementInvalidCount(flowData);
-            if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+            if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
             return replyResult(
               withRetryGuard(`That time has already passed for today. Please choose a future time (for example ${minutesToDisplay(nowMinutes + 15)}).`, nextData),
               "booking",
@@ -753,7 +762,7 @@ export function handleGuidedMessage(params: {
         const daySchedule = schedule.get(date.date.getDay());
         if (hasParsedHours && daySchedule && (parsedTime.minutes < daySchedule.open || parsedTime.minutes > daySchedule.close)) {
           const nextData = incrementInvalidCount(flowData);
-          if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+          if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
           const nearest = parsedTime.minutes < daySchedule.open ? daySchedule.open : daySchedule.close;
           return replyResult(
             withRetryGuard(`That time is outside our opening hours for that day. Please choose between ${minutesToDisplay(daySchedule.open)} and ${minutesToDisplay(daySchedule.close)} (try ${minutesToDisplay(nearest)}).`, nextData),

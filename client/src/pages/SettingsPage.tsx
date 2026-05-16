@@ -66,6 +66,7 @@ type Form = {
   welcomeMenuMessage: string;
   welcomeMenuOptions: string;
   greetingKeywords: string;
+  bookingFlowCancelMessage: string;
   reminderEnabled: boolean;
   reminderMinutesBefore: number;
   reminderMessageTemplate: string;
@@ -89,6 +90,7 @@ const EMPTY: Form = {
   welcomeMenuMessage: "",
   welcomeMenuOptions: "",
   greetingKeywords: "",
+  bookingFlowCancelMessage: "",
   reminderEnabled: false,
   reminderMinutesBefore: 60,
   reminderMessageTemplate: "",
@@ -124,6 +126,7 @@ export default function SettingsPage() {
         welcomeMenuMessage: settings.welcomeMenuMessage ?? "",
         welcomeMenuOptions: settings.welcomeMenuOptions ?? "",
         greetingKeywords: settings.greetingKeywords ?? "",
+        bookingFlowCancelMessage: settings.bookingFlowCancelMessage ?? "",
         reminderEnabled: settings.reminderEnabled ?? false,
         reminderMinutesBefore: settings.reminderMinutesBefore ?? 60,
         reminderMessageTemplate: settings.reminderMessageTemplate ?? "",
@@ -158,6 +161,7 @@ export default function SettingsPage() {
           welcomeMenuMessage: form.welcomeMenuMessage || undefined,
           welcomeMenuOptions: form.welcomeMenuOptions || undefined,
           greetingKeywords: form.greetingKeywords || undefined,
+          bookingFlowCancelMessage: form.bookingFlowCancelMessage || undefined,
           reminderEnabled: form.reminderEnabled,
           reminderMinutesBefore: form.reminderMinutesBefore,
           reminderMessageTemplate: form.reminderMessageTemplate || undefined,
@@ -459,6 +463,18 @@ export default function SettingsPage() {
                 rows={3}
                 className="mt-1 resize-none text-sm"
               />
+            </div>
+            <div>
+              <Label htmlFor="bookingFlowCancelMessage">Booking Flow Auto-Cancel Message</Label>
+              <Textarea
+                id="bookingFlowCancelMessage"
+                value={form.bookingFlowCancelMessage}
+                onChange={(e) => set("bookingFlowCancelMessage", e.target.value)}
+                placeholder="I couldn't understand after multiple tries, so I cancelled this booking flow. Type 'book' to start again or type 'menu' to see options."
+                rows={3}
+                className="mt-1 resize-none text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-2">Optional. Used when the bot auto-cancels booking flow after repeated invalid replies. Leave empty to use default message.</p>
             </div>
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-3">
               <div className="flex items-center justify-between">

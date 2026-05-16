@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS "settings" (
   "ai_fallback_enabled" boolean DEFAULT true NOT NULL,
   "welcome_menu_message" text,
   "welcome_menu_options" text,
+  "booking_flow_cancel_message" text,
   "payment_methods" text,
   "staff_contact_message" text,
   "currency"         text DEFAULT 'USD' NOT NULL,

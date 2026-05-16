@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS settings (
   ai_fallback_enabled BOOLEAN NOT NULL DEFAULT TRUE,
   welcome_menu_message TEXT,
   welcome_menu_options TEXT,
+  booking_flow_cancel_message TEXT,
   payment_methods TEXT,
   staff_contact_message TEXT,
   currency       TEXT NOT NULL DEFAULT 'USD',

@@ -23,6 +23,7 @@ export const settingsTable = pgTable("settings", {
   welcomeMenuMessage: text("welcome_menu_message"),
   welcomeMenuOptions: text("welcome_menu_options"),
   greetingKeywords: text("greeting_keywords"),
+  bookingFlowCancelMessage: text("booking_flow_cancel_message"),
   reminderEnabled: boolean("reminder_enabled").notNull().default(false),
   reminderMinutesBefore: integer("reminder_minutes_before").notNull().default(60),
   reminderMessageTemplate: text("reminder_message_template"),
