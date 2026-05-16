@@ -41,6 +41,17 @@ router.get("/webhook", async (req, res): Promise<void> => {
 
 router.post("/webhook", async (req, res): Promise<void> => {
   const appSecret = process.env["WHATSAPP_APP_SECRET"];
+  const requireSignature =
+    process.env["WHATSAPP_REQUIRE_SIGNATURE"] === "false"
+      ? false
+      : process.env["NODE_ENV"] === "production";
+
+  if (requireSignature && !appSecret) {
+    logger.error("WHATSAPP_APP_SECRET is missing while webhook signature is required");
+    res.sendStatus(503);
+    return;
+  }
+
   if (appSecret) {
     const rawBody = (req as typeof req & { rawBody?: Buffer }).rawBody;
     const signature = req.header("x-hub-signature-256");

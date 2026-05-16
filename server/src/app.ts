@@ -8,6 +8,15 @@ import { ForbiddenError } from "./lib/errors";
 
 const app: Express = express();
 
+function getAllowedOrigins(): string[] {
+  const raw = process.env["CORS_ORIGINS"]?.trim();
+  if (raw) {
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  const appOrigin = process.env["APP_ORIGIN"]?.trim();
+  return appOrigin ? [appOrigin] : [];
+}
+
 app.use(
   pinoHttp({
     logger,
@@ -27,7 +36,23 @@ app.use(
     },
   }),
 );
-app.use(cors());
+const allowedOrigins = getAllowedOrigins();
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) {
+        cb(null, true);
+        return;
+      }
+      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        cb(null, true);
+        return;
+      }
+      cb(null, false);
+    },
+    credentials: true,
+  }),
+);
 app.use(cookieParser());
 app.use(
   express.json({
