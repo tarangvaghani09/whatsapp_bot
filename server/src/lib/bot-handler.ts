@@ -1,5 +1,5 @@
 import { db, customersTable, botMessagesTable, faqsTable, servicesTable, bookingsTable, aiUsageTable, settingsTable, businessesTable, deliveryFailuresTable } from "@workspace/db";
-import { eq, and, desc, isNotNull, isNull } from "drizzle-orm";
+import { eq, and, desc, isNotNull, isNull, sql } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { sendWhatsAppMessage, type BusinessCreds, type SendResult } from "./whatsapp";
 import { matchFaq, matchFaqWithScore, matchService, detectBookingIntent, formatServiceReply, detectGreetingWithCustomKeywords } from "./faq-matcher";
@@ -17,8 +17,63 @@ const GLOBAL_DUPLICATE_HINT_COOLDOWN_MS = 15_000;
 const CUSTOMER_RATE_LIMIT_WINDOW_MS = 60_000;
 const CUSTOMER_RATE_LIMIT_MAX = 15;
 const STALE_INBOUND_WINDOW_MS = 2 * 60 * 1000;
-const INBOUND_MESSAGE_ID_CACHE_LIMIT = 100;
 const GUIDED_NO_MATCH_HINT_COOLDOWN_MS = 10_000;
+const BUSINESS_CONTEXT_CACHE_TTL_MS = 10_000;
+
+type BusinessRuntimeContext = {
+  settings: Awaited<ReturnType<typeof db.select>>[number] | undefined;
+  services: Awaited<ReturnType<typeof db.select>>;
+  faqs: Awaited<ReturnType<typeof db.select>>;
+};
+
+const businessContextCache = new Map<number, { expiresAt: number; data: BusinessRuntimeContext }>();
+
+async function shouldProcessInboundMessage(
+  businessId: number,
+  phone: string,
+  messageId: string | undefined,
+  messageTimestampMs: number | undefined,
+): Promise<boolean> {
+  if (!messageId) return true;
+  const messageTsSec = typeof messageTimestampMs === "number" && messageTimestampMs > 0
+    ? Math.floor(messageTimestampMs / 1000)
+    : null;
+
+  try {
+    const inserted = await db.execute(sql`
+      INSERT INTO processed_inbound (business_id, phone, message_id, message_ts)
+      VALUES (${businessId}, ${phone}, ${messageId}, ${messageTsSec}::bigint)
+      ON CONFLICT (business_id, phone, message_id) DO NOTHING
+      RETURNING id
+    `);
+    return inserted.rows.length > 0;
+  } catch (err) {
+    logger.warn({ err }, "processed_inbound table not available, falling back to in-memory flowData dedupe");
+    return true;
+  }
+}
+
+async function getBusinessRuntimeContext(businessId: number): Promise<BusinessRuntimeContext> {
+  const now = Date.now();
+  const cached = businessContextCache.get(businessId);
+  if (cached && cached.expiresAt > now) return cached.data;
+
+  const [settingsRows, services, faqs] = await Promise.all([
+    db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1),
+    db.select().from(servicesTable)
+      .where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true))),
+    db.select().from(faqsTable)
+      .where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true))),
+  ]);
+
+  const data: BusinessRuntimeContext = {
+    settings: settingsRows[0],
+    services,
+    faqs,
+  };
+  businessContextCache.set(businessId, { expiresAt: now + BUSINESS_CONTEXT_CACHE_TTL_MS, data });
+  return data;
+}
 
 function normalizeIncomingText(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -288,28 +343,22 @@ export async function handleIncomingMessage(
   }
 
   if (inboundMessageId) {
-    const seen = Array.isArray(earlyMeta["processedInboundMessageIds"])
-      ? (earlyMeta["processedInboundMessageIds"] as unknown[]).filter((x): x is string => typeof x === "string")
-      : [];
-    if (seen.includes(inboundMessageId)) {
+    const shouldProcess = await shouldProcessInboundMessage(
+      businessId,
+      phone,
+      inboundMessageId,
+      inboundMessageTimestampMs,
+    );
+    if (!shouldProcess) {
       logger.info({ phone, businessId, inboundMessageId }, "Dropped duplicate inbound message-id");
       return;
     }
-    const nextSeen = [...seen, inboundMessageId].slice(-INBOUND_MESSAGE_ID_CACHE_LIMIT);
-    earlyMeta["processedInboundMessageIds"] = nextSeen;
-    await db.update(customersTable)
-      .set({ flowData: JSON.stringify(earlyMeta) })
-      .where(eq(customersTable.id, customer.id));
   }
 
-  const [settingsRows, services, faqs] = await Promise.all([
-    db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1),
-    db.select().from(servicesTable)
-      .where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true))),
-    db.select().from(faqsTable)
-      .where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true))),
-  ]);
-  const settings = settingsRows[0];
+  const runtimeContext = await getBusinessRuntimeContext(businessId);
+  const settings = runtimeContext.settings;
+  const services = runtimeContext.services;
+  const faqs = runtimeContext.faqs;
   const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
   const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
 

@@ -73110,8 +73110,42 @@ var GLOBAL_DUPLICATE_HINT_COOLDOWN_MS = 15e3;
 var CUSTOMER_RATE_LIMIT_WINDOW_MS = 6e4;
 var CUSTOMER_RATE_LIMIT_MAX = 15;
 var STALE_INBOUND_WINDOW_MS = 2 * 60 * 1e3;
-var INBOUND_MESSAGE_ID_CACHE_LIMIT = 100;
 var GUIDED_NO_MATCH_HINT_COOLDOWN_MS = 1e4;
+var BUSINESS_CONTEXT_CACHE_TTL_MS = 1e4;
+var businessContextCache = /* @__PURE__ */ new Map();
+async function shouldProcessInboundMessage(businessId, phone, messageId, messageTimestampMs) {
+  if (!messageId) return true;
+  const messageTsSec = typeof messageTimestampMs === "number" && messageTimestampMs > 0 ? Math.floor(messageTimestampMs / 1e3) : null;
+  try {
+    const inserted = await db.execute(sql`
+      INSERT INTO processed_inbound (business_id, phone, message_id, message_ts)
+      VALUES (${businessId}, ${phone}, ${messageId}, ${messageTsSec}::bigint)
+      ON CONFLICT (business_id, phone, message_id) DO NOTHING
+      RETURNING id
+    `);
+    return inserted.rows.length > 0;
+  } catch (err) {
+    logger.warn({ err }, "processed_inbound table not available, falling back to in-memory flowData dedupe");
+    return true;
+  }
+}
+async function getBusinessRuntimeContext(businessId) {
+  const now = Date.now();
+  const cached2 = businessContextCache.get(businessId);
+  if (cached2 && cached2.expiresAt > now) return cached2.data;
+  const [settingsRows, services, faqs] = await Promise.all([
+    db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1),
+    db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true))),
+    db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)))
+  ]);
+  const data = {
+    settings: settingsRows[0],
+    services,
+    faqs
+  };
+  businessContextCache.set(businessId, { expiresAt: now + BUSINESS_CONTEXT_CACHE_TTL_MS, data });
+  return data;
+}
 function normalizeIncomingText(text2) {
   return text2.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -73293,21 +73327,21 @@ async function handleIncomingMessage(phone, text2, phoneNumberId, inboundMessage
     }
   }
   if (inboundMessageId) {
-    const seen = Array.isArray(earlyMeta["processedInboundMessageIds"]) ? earlyMeta["processedInboundMessageIds"].filter((x) => typeof x === "string") : [];
-    if (seen.includes(inboundMessageId)) {
+    const shouldProcess = await shouldProcessInboundMessage(
+      businessId,
+      phone,
+      inboundMessageId,
+      inboundMessageTimestampMs
+    );
+    if (!shouldProcess) {
       logger.info({ phone, businessId, inboundMessageId }, "Dropped duplicate inbound message-id");
       return;
     }
-    const nextSeen = [...seen, inboundMessageId].slice(-INBOUND_MESSAGE_ID_CACHE_LIMIT);
-    earlyMeta["processedInboundMessageIds"] = nextSeen;
-    await db.update(customersTable).set({ flowData: JSON.stringify(earlyMeta) }).where(eq(customersTable.id, customer.id));
   }
-  const [settingsRows, services, faqs] = await Promise.all([
-    db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1),
-    db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true))),
-    db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)))
-  ]);
-  const settings = settingsRows[0];
+  const runtimeContext = await getBusinessRuntimeContext(businessId);
+  const settings = runtimeContext.settings;
+  const services = runtimeContext.services;
+  const faqs = runtimeContext.faqs;
   const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
   const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
   await logMessage(customer.id, businessId, "inbound", text2, "none");
