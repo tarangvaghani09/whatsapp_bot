@@ -103,8 +103,10 @@ export default function TestBotPage() {
       { data: { message: trimmed, sessionId: sessionIdRef.current }, params: { businessId } },
       {
         onSuccess: (data) => {
-          setMessages((prev) =>
-            prev.map((m) =>
+          const responseText = (data.response ?? "").trim();
+          setMessages((prev) => {
+            if (!responseText) return prev.filter((m) => !m.isThinking);
+            return prev.map((m) =>
               m.isThinking
                 ? {
                     ...m,
@@ -116,14 +118,31 @@ export default function TestBotPage() {
                     isThinking: false,
                   }
                 : m,
-            ),
-          );
+            );
+          });
         },
-        onError: () => {
+        onError: (err: unknown) => {
+          const e = err as {
+            message?: string;
+            response?: { status?: number; data?: { error?: string } };
+          };
+          const status = e?.response?.status;
+          const serverError = e?.response?.data?.error ?? "";
+          const message = e?.message ?? "";
+          const isRateLimited =
+            status === 429 ||
+            /too many requests/i.test(serverError) ||
+            /too many requests/i.test(message) ||
+            /rate limit/i.test(serverError) ||
+            /rate limit/i.test(message);
+          const errorText = isRateLimited
+            ? "You're sending messages too quickly. Please wait a minute and try again."
+            : "Error — could not get a response. Check the server logs.";
+
           setMessages((prev) =>
             prev.map((m) =>
               m.isThinking
-                ? { ...m, text: "Error â€” could not get a response. Check the server logs.", isThinking: false, replyType: "none" }
+                ? { ...m, text: errorText, isThinking: false, replyType: "none" }
                 : m,
             ),
           );
@@ -293,3 +312,4 @@ export default function TestBotPage() {
     </div>
   );
 }
+

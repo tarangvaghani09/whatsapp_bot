@@ -40,7 +40,7 @@ export function decryptSecret(value?: string | null): string | undefined {
     throw new Error("WHATSAPP_TOKEN_ENC_KEY is required to decrypt stored WhatsApp token");
   }
 
-  const [, ivB64, encB64, tagB64] = value.split(":");
+  const [ivB64, encB64, tagB64] = value.slice(`${ENC_PREFIX}:`.length).split(":");
   if (!ivB64 || !encB64 || !tagB64) {
     throw new Error("Invalid encrypted secret format");
   }

@@ -23,6 +23,11 @@ type FlowData = {
   requestedDate?: string;
   requestedTime?: string;
   invalidCount?: number;
+  lastUserText?: string;
+  lastUserTextAt?: number;
+  lastUserState?: ConversationFlowState | null;
+  lastDuplicateHintAt?: number;
+  lastWelcomeSentAt?: number;
 };
 
 type CustomerFlowCarrier = {
@@ -78,6 +83,10 @@ const DEFAULT_MENU_OPTIONS: MenuOption[] = [
   { label: "Talk to Staff", action: "staff" },
 ];
 
+const DUPLICATE_TEXT_WINDOW_MS = 15_000;
+const DUPLICATE_HINT_COOLDOWN_MS = 15_000;
+const WELCOME_COOLDOWN_MS = 5 * 60 * 1000;
+
 function normalize(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -92,6 +101,19 @@ function parseAction(raw: string): MenuAction {
   if (value.includes("payment") || value.includes("card") || value.includes("upi") || value.includes("cash")) return "payment";
   if (value.includes("staff") || value.includes("reception") || value.includes("support") || value.includes("talk")) return "staff";
   return "unknown";
+}
+
+function isHoursQuery(text: string): boolean {
+  const value = normalize(text);
+  if (!value) return false;
+  return (
+    value === "open" ||
+    value.includes("timing") ||
+    value.includes("opening") ||
+    value.includes("closing") ||
+    value.includes("hours") ||
+    value.includes("what time")
+  );
 }
 
 export function parseMenuOptions(raw: string | null | undefined): MenuOption[] {
@@ -553,13 +575,65 @@ export function handleGuidedMessage(params: {
   const flowData = parseFlowData(customer.flowData);
   const currentState = customer.flowState as ConversationFlowState | null;
   const normalizedText = normalize(text);
+  const now = Date.now();
+
+  const prevText = String(flowData.lastUserText ?? "");
+  const prevAt = Number(flowData.lastUserTextAt ?? 0);
+  const prevState = (flowData.lastUserState as ConversationFlowState | null | undefined) ?? null;
+  const isDuplicateText =
+    normalizedText.length > 0 &&
+    prevText === normalizedText &&
+    prevState === currentState &&
+    prevAt > 0 &&
+    now - prevAt <= DUPLICATE_TEXT_WINDOW_MS;
+
+  if (isDuplicateText) {
+    const nextData: FlowData = {
+      ...flowData,
+      lastUserText: normalizedText,
+      lastUserTextAt: now,
+      lastUserState: currentState,
+    };
+    const lastHintAt = Number(flowData.lastDuplicateHintAt ?? 0);
+    if (lastHintAt <= 0 || now - lastHintAt > DUPLICATE_HINT_COOLDOWN_MS) {
+      nextData.lastDuplicateHintAt = now;
+      return replyResult(
+        "I already got that message. Please wait a moment or choose the next option.",
+        "none",
+        currentState,
+        nextData,
+      );
+    }
+    return replyResult("", "none", currentState, nextData);
+  }
+
+  flowData.lastUserText = normalizedText;
+  flowData.lastUserTextAt = now;
+  flowData.lastUserState = currentState;
 
   if (detectGreetingWithCustomKeywords(text, settings.greetingKeywords)) {
+    const lastWelcomeSentAt = Number(flowData.lastWelcomeSentAt ?? 0);
+    const withinWelcomeCooldown = lastWelcomeSentAt > 0 && now - lastWelcomeSentAt < WELCOME_COOLDOWN_MS;
+    const nextData: FlowData = {
+      ...flowData,
+      lastUserText: normalizedText,
+      lastUserTextAt: now,
+      lastUserState: "awaiting_menu_option",
+    };
+    if (withinWelcomeCooldown) {
+      return replyResult(
+        "You already have menu. Reply 1-5.",
+        "faq",
+        "awaiting_menu_option",
+        nextData,
+      );
+    }
+    nextData.lastWelcomeSentAt = now;
     return replyResult(
       buildGreetingReply(settings, fallbackBusinessName),
       "faq",
       "awaiting_menu_option",
-      {},
+      nextData,
     );
   }
 
@@ -569,6 +643,62 @@ export function handleGuidedMessage(params: {
 
   if (normalizedText === "menu") {
     return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+  }
+
+  if (currentState === "awaiting_menu_option" && normalizedText === "back") {
+    return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+  }
+
+  const isBookingFlowState =
+    currentState === "awaiting_booking_category" ||
+    currentState === "awaiting_booking_service" ||
+    currentState === "awaiting_booking_date" ||
+    currentState === "awaiting_booking_time" ||
+    currentState === "awaiting_booking_name";
+
+  if (isBookingFlowState && isHoursQuery(text)) {
+    return replyResult(
+      `${buildHoursReply(settings)}\n\nDo you want to continue booking? Reply 1-5 or type back.`,
+      "faq",
+      currentState,
+      resetInvalidCount(flowData),
+    );
+  }
+
+  if (isBookingFlowState) {
+    const action = parseAction(text);
+    if (action === "location") {
+      return replyResult(
+        `${buildLocationReply(settings)}\n\nDo you want to continue booking? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
+    if (action === "payment") {
+      return replyResult(
+        `${buildPaymentReply(settings)}\n\nDo you want to continue booking? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
+    if (action === "staff") {
+      return replyResult(
+        `${buildStaffReply(settings)}\n\nDo you want to continue booking? Reply 1-5 or type back.`,
+        "none",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
+    if (action === "services") {
+      return replyResult(
+        `${buildServicesReply(services, settings.currency)}\n\nDo you want to continue booking? Reply 1-5 or type back.`,
+        "service",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
   }
 
   const directMenuSelection = findMenuSelection(text, menuOptions);
@@ -582,6 +712,40 @@ export function handleGuidedMessage(params: {
   }
 
   if (currentState === "awaiting_menu_option") {
+    if (isHoursQuery(text)) {
+      return replyResult(
+        `${buildHoursReply(settings)}\n\nPlease choose from menu: 1-5 (or type back).`,
+        "faq",
+        "awaiting_menu_option",
+        resetInvalidCount(flowData),
+      );
+    }
+    const menuIntent = parseAction(text);
+    if (menuIntent === "location") {
+      return replyResult(
+        `${buildLocationReply(settings)}\n\nPlease choose from menu: 1-5 (or type back).`,
+        "faq",
+        "awaiting_menu_option",
+        resetInvalidCount(flowData),
+      );
+    }
+    if (menuIntent === "payment") {
+      return replyResult(
+        `${buildPaymentReply(settings)}\n\nPlease choose from menu: 1-5 (or type back).`,
+        "faq",
+        "awaiting_menu_option",
+        resetInvalidCount(flowData),
+      );
+    }
+    if (menuIntent === "staff") {
+      return replyResult(
+        `${buildStaffReply(settings)}\n\nPlease choose from menu: 1-5 (or type back).`,
+        "none",
+        "awaiting_menu_option",
+        resetInvalidCount(flowData),
+      );
+    }
+
     const selection = directMenuSelection;
     if (!selection) {
       const nextData = incrementInvalidCount(flowData);
@@ -634,6 +798,48 @@ export function handleGuidedMessage(params: {
   }
 
   if (currentState === "awaiting_service_category") {
+    if (isHoursQuery(text)) {
+      return replyResult(
+        `${buildHoursReply(settings)}\n\nDo you want to continue services? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
+    const serviceFlowIntent = parseAction(text);
+    if (serviceFlowIntent === "location") {
+      return replyResult(
+        `${buildLocationReply(settings)}\n\nDo you want to continue services? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
+    if (serviceFlowIntent === "payment") {
+      return replyResult(
+        `${buildPaymentReply(settings)}\n\nDo you want to continue services? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
+    if (serviceFlowIntent === "staff") {
+      return replyResult(
+        `${buildStaffReply(settings)}\n\nDo you want to continue services? Reply 1-5 or type back.`,
+        "none",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
+    if (serviceFlowIntent === "booking") {
+      return replyResult(
+        "Do you want to switch to booking now? Reply 2 for Book Appointment, or type back to continue services.",
+        "booking",
+        currentState,
+        resetInvalidCount(flowData),
+      );
+    }
+
     const categories = listCategories(services);
     const category = findCategorySelection(text, categories);
     if (!category) {

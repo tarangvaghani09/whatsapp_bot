@@ -8,6 +8,24 @@ import { SimulateMessageBody, SimulateMessageResponse } from "@workspace/api-zod
 import { BusinessIdQueryParam, resolveBusinessId } from "../lib/resolve-business";
 
 const router: IRouter = Router();
+const GLOBAL_DUPLICATE_WINDOW_MS = 15_000;
+const GLOBAL_DUPLICATE_HINT_COOLDOWN_MS = 15_000;
+const CUSTOMER_RATE_LIMIT_WINDOW_MS = 60_000;
+const CUSTOMER_RATE_LIMIT_MAX = 15;
+
+function normalizeIncomingText(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function parseFlowMeta(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
 
 async function getOrCreateTestCustomer(sessionId: string, businessId: number) {
   const phone = `__testbot__:${sessionId}`;
@@ -128,6 +146,88 @@ router.post("/simulate", async (req, res): Promise<void> => {
     settings = settingsRows[0];
     const customer = await getOrCreateTestCustomer(sessionId ?? "default", businessId);
 
+    const meta = parseFlowMeta(customer.flowData);
+    const now = Date.now();
+
+    // Per-customer rate limit: max 15 inbound msgs per minute per business+phone.
+    const windowStart = typeof meta["rlWindowStartAt"] === "number" ? meta["rlWindowStartAt"] : 0;
+    const withinWindow = windowStart > 0 && now - windowStart < CUSTOMER_RATE_LIMIT_WINDOW_MS;
+    const nextCount = withinWindow ? (typeof meta["rlCount"] === "number" ? meta["rlCount"] : 0) + 1 : 1;
+    meta["rlWindowStartAt"] = withinWindow ? windowStart : now;
+    meta["rlCount"] = nextCount;
+
+    if (nextCount > CUSTOMER_RATE_LIMIT_MAX) {
+      const lastWarnAt = typeof meta["rlLastWarnAt"] === "number" ? meta["rlLastWarnAt"] : 0;
+      if (!withinWindow || lastWarnAt < (meta["rlWindowStartAt"] as number)) {
+        meta["rlLastWarnAt"] = now;
+        await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+        res.json(SimulateMessageResponse.parse({
+          replyType: "none",
+          response: "You're sending messages too quickly. Please wait a minute and try again.",
+          matchedFaqId: null,
+          matchedFaqQuestion: null,
+          matchedServiceId: null,
+          matchedServiceName: null,
+          aiTokensUsed: null,
+        }));
+        return;
+      }
+      await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+      res.json(SimulateMessageResponse.parse({
+        replyType: "none",
+        response: "",
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: null,
+      }));
+      return;
+    }
+
+    // Global duplicate guard for non-guided simulation path.
+    if (!customer.flowState) {
+      const normalized = normalizeIncomingText(message);
+      const lastText = typeof meta["lastGlobalText"] === "string" ? meta["lastGlobalText"] : "";
+      const lastAt = typeof meta["lastGlobalTextAt"] === "number" ? meta["lastGlobalTextAt"] : 0;
+      const lastHintAt = typeof meta["lastGlobalDuplicateHintAt"] === "number" ? meta["lastGlobalDuplicateHintAt"] : 0;
+      const isDuplicate = normalized.length > 0 && normalized === lastText && lastAt > 0 && now - lastAt <= GLOBAL_DUPLICATE_WINDOW_MS;
+
+      meta["lastGlobalText"] = normalized;
+      meta["lastGlobalTextAt"] = now;
+
+      if (isDuplicate) {
+        if (lastHintAt <= 0 || now - lastHintAt > GLOBAL_DUPLICATE_HINT_COOLDOWN_MS) {
+          meta["lastGlobalDuplicateHintAt"] = now;
+          await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+          res.json(SimulateMessageResponse.parse({
+            replyType: "none",
+            response: "I already got that message. Please wait a moment or choose the next option.",
+            matchedFaqId: null,
+            matchedFaqQuestion: null,
+            matchedServiceId: null,
+            matchedServiceName: null,
+            aiTokensUsed: null,
+          }));
+          return;
+        }
+
+        await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+        res.json(SimulateMessageResponse.parse({
+          replyType: "none",
+          response: "",
+          matchedFaqId: null,
+          matchedFaqQuestion: null,
+          matchedServiceId: null,
+          matchedServiceName: null,
+          aiTokensUsed: null,
+        }));
+        return;
+      }
+    }
+
+    await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+
     const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
     const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
     const services = await db.select().from(servicesTable)
@@ -162,9 +262,12 @@ router.post("/simulate", async (req, res): Promise<void> => {
         });
       }
 
+      const guidedReply = guided.reply;
+      const guidedType = guided.reply.trim().length > 0 ? guided.replyType : "none";
+
       res.json(SimulateMessageResponse.parse({
-        replyType: guided.replyType,
-        response: guided.reply,
+        replyType: guidedType,
+        response: guidedReply,
         matchedFaqId: null,
         matchedFaqQuestion: null,
         matchedServiceId: null,

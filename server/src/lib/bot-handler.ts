@@ -12,6 +12,25 @@ Answer only business-related questions. Keep answers short (under 100 words).
 Do not answer unrelated questions — politely decline and redirect to business topics.
 If the customer asks something you don't know, suggest they contact the business directly.`;
 
+const GLOBAL_DUPLICATE_WINDOW_MS = 15_000;
+const GLOBAL_DUPLICATE_HINT_COOLDOWN_MS = 15_000;
+const CUSTOMER_RATE_LIMIT_WINDOW_MS = 60_000;
+const CUSTOMER_RATE_LIMIT_MAX = 15;
+
+function normalizeIncomingText(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function parseFlowMeta(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
 async function getBusinessSystemPrompt(businessId: number): Promise<string> {
   const rows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
   const s = rows[0];
@@ -163,6 +182,23 @@ function detectRatingReply(text: string): number | null {
   return null;
 }
 
+function isThankYouMessage(text: string): boolean {
+  const normalized = normalizeIncomingText(text);
+  if (!normalized) return false;
+  return (
+    normalized === "thanks" ||
+    normalized === "thank you" ||
+    normalized === "thankyou" ||
+    normalized === "thank u" ||
+    normalized === "thx" ||
+    normalized === "ty" ||
+    normalized === "tank you" ||
+    normalized === "tank u" ||
+    normalized.includes("thank you") ||
+    normalized.includes("thanks")
+  );
+}
+
 function getSafeNoMatchReply(
   settings: { businessName?: string | null; phone?: string | null; email?: string | null; noMatchMessage?: string | null } | undefined,
   fallbackName: string,
@@ -204,6 +240,72 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
     .where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
 
   await logMessage(customer.id, businessId, "inbound", text, "none");
+
+  // Global duplicate guard for non-guided chat (FAQ/service/greeting path).
+  // Guided flow has its own dedupe logic in guided-menu.
+  {
+    const meta = parseFlowMeta((customer as { flowData?: string | null }).flowData);
+    const now = Date.now();
+
+    // Per-customer rate limit: max 15 inbound msgs per minute per business+phone.
+    const windowStart = typeof meta["rlWindowStartAt"] === "number" ? meta["rlWindowStartAt"] : 0;
+    const withinWindow = windowStart > 0 && now - windowStart < CUSTOMER_RATE_LIMIT_WINDOW_MS;
+    const nextCount = withinWindow
+      ? (typeof meta["rlCount"] === "number" ? meta["rlCount"] : 0) + 1
+      : 1;
+    meta["rlWindowStartAt"] = withinWindow ? windowStart : now;
+    meta["rlCount"] = nextCount;
+
+    if (nextCount > CUSTOMER_RATE_LIMIT_MAX) {
+      const lastWarnAt = typeof meta["rlLastWarnAt"] === "number" ? meta["rlLastWarnAt"] : 0;
+      if (!withinWindow || lastWarnAt < (meta["rlWindowStartAt"] as number)) {
+        meta["rlLastWarnAt"] = now;
+        await db.update(customersTable)
+          .set({ flowData: JSON.stringify(meta) })
+          .where(eq(customersTable.id, customer.id));
+        const reply = "You're sending messages too quickly. Please wait a minute and try again.";
+        const result = await sendWhatsAppMessage(phone, reply, creds);
+        if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+        await logMessage(customer.id, businessId, "outbound", reply, "none");
+      } else {
+        await db.update(customersTable)
+          .set({ flowData: JSON.stringify(meta) })
+          .where(eq(customersTable.id, customer.id));
+        logger.info({ phone, businessId }, "Rate-limited message suppressed (no outbound reply)");
+      }
+      return;
+    }
+
+    if (!customer.flowState) {
+    const normalized = normalizeIncomingText(text);
+    const lastText = typeof meta["lastGlobalText"] === "string" ? meta["lastGlobalText"] : "";
+    const lastAt = typeof meta["lastGlobalTextAt"] === "number" ? meta["lastGlobalTextAt"] : 0;
+    const lastHintAt = typeof meta["lastGlobalDuplicateHintAt"] === "number" ? meta["lastGlobalDuplicateHintAt"] : 0;
+    const isDuplicate = normalized.length > 0 && normalized === lastText && lastAt > 0 && now - lastAt <= GLOBAL_DUPLICATE_WINDOW_MS;
+
+    meta["lastGlobalText"] = normalized;
+    meta["lastGlobalTextAt"] = now;
+    await db.update(customersTable)
+      .set({ flowData: JSON.stringify(meta) })
+      .where(eq(customersTable.id, customer.id));
+
+    if (isDuplicate) {
+      if (lastHintAt <= 0 || now - lastHintAt > GLOBAL_DUPLICATE_HINT_COOLDOWN_MS) {
+        meta["lastGlobalDuplicateHintAt"] = now;
+        await db.update(customersTable)
+          .set({ flowData: JSON.stringify(meta) })
+          .where(eq(customersTable.id, customer.id));
+        const reply = "I already got that message. Please wait a moment or choose the next option.";
+        const result = await sendWhatsAppMessage(phone, reply, creds);
+        if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+        await logMessage(customer.id, businessId, "outbound", reply, "none");
+      } else {
+        logger.info({ phone, businessId }, "Global duplicate message suppressed (no outbound reply)");
+      }
+      return;
+    }
+    }
+  }
 
   // ── Rating reply ──────────────────────────────────────────────────────────
   const ratingValue = detectRatingReply(text);
@@ -266,10 +368,23 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
       });
     }
 
-    const result = await sendWhatsAppMessage(phone, guided.reply, creds);
-    if (!result.ok) await recordDeliveryFailure(businessId, phone, guided.reply, result, "bot");
-    await logMessage(customer.id, businessId, "outbound", guided.reply, guided.replyType);
+    if (guided.reply.trim().length > 0) {
+      const result = await sendWhatsAppMessage(phone, guided.reply, creds);
+      if (!result.ok) await recordDeliveryFailure(businessId, phone, guided.reply, result, "bot");
+      await logMessage(customer.id, businessId, "outbound", guided.reply, guided.replyType);
+    } else {
+      logger.info({ phone, businessId }, "Guided duplicate message suppressed (no outbound reply)");
+    }
     logger.info({ phone, businessId, flowState: guided.flowState }, "Guided menu flow handled message");
+    return;
+  }
+
+  if (!customer.flowState && isThankYouMessage(text)) {
+    const reply = "You're welcome! Happy to help. Type 'menu' any time for options.";
+    const result = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Thank-you message handled");
     return;
   }
 

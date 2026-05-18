@@ -58112,6 +58112,7 @@ var settingsTable = pgTable("settings", {
   welcomeMenuMessage: text("welcome_menu_message"),
   welcomeMenuOptions: text("welcome_menu_options"),
   greetingKeywords: text("greeting_keywords"),
+  bookingFlowCancelMessage: text("booking_flow_cancel_message"),
   reminderEnabled: boolean("reminder_enabled").notNull().default(false),
   reminderMinutesBefore: integer("reminder_minutes_before").notNull().default(60),
   reminderMessageTemplate: text("reminder_message_template"),
@@ -62755,6 +62756,7 @@ var GetSettingsResponse = objectType({
   "welcomeMenuMessage": stringType().nullable(),
   "welcomeMenuOptions": stringType().nullable(),
   "greetingKeywords": stringType().nullable(),
+  "bookingFlowCancelMessage": stringType().nullable(),
   "reminderEnabled": booleanType(),
   "reminderMinutesBefore": numberType(),
   "reminderMessageTemplate": stringType().nullable(),
@@ -62781,6 +62783,7 @@ var UpdateSettingsBody = objectType({
   "welcomeMenuMessage": stringType().optional(),
   "welcomeMenuOptions": stringType().optional(),
   "greetingKeywords": stringType().optional(),
+  "bookingFlowCancelMessage": stringType().optional(),
   "reminderEnabled": booleanType().optional(),
   "reminderMinutesBefore": numberType().optional(),
   "reminderMessageTemplate": stringType().optional(),
@@ -62804,6 +62807,7 @@ var UpdateSettingsResponse = objectType({
   "welcomeMenuMessage": stringType().nullable(),
   "welcomeMenuOptions": stringType().nullable(),
   "greetingKeywords": stringType().nullable(),
+  "bookingFlowCancelMessage": stringType().nullable(),
   "reminderEnabled": booleanType(),
   "reminderMinutesBefore": numberType(),
   "reminderMessageTemplate": stringType().nullable(),
@@ -72203,7 +72207,7 @@ function decryptSecret(value) {
   if (!key) {
     throw new Error("WHATSAPP_TOKEN_ENC_KEY is required to decrypt stored WhatsApp token");
   }
-  const [, ivB64, encB64, tagB64] = value.split(":");
+  const [ivB64, encB64, tagB64] = value.slice(`${ENC_PREFIX}:`.length).split(":");
   if (!ivB64 || !encB64 || !tagB64) {
     throw new Error("Invalid encrypted secret format");
   }
@@ -72228,6 +72232,9 @@ var DEFAULT_MENU_OPTIONS = [
   { label: "Location", action: "location" },
   { label: "Talk to Staff", action: "staff" }
 ];
+var DUPLICATE_TEXT_WINDOW_MS = 15e3;
+var DUPLICATE_HINT_COOLDOWN_MS = 15e3;
+var WELCOME_COOLDOWN_MS = 5 * 60 * 1e3;
 function normalize(text2) {
   return text2.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -72241,6 +72248,11 @@ function parseAction(raw) {
   if (value.includes("payment") || value.includes("card") || value.includes("upi") || value.includes("cash")) return "payment";
   if (value.includes("staff") || value.includes("reception") || value.includes("support") || value.includes("talk")) return "staff";
   return "unknown";
+}
+function isHoursQuery(text2) {
+  const value = normalize(text2);
+  if (!value) return false;
+  return value === "open" || value.includes("timing") || value.includes("opening") || value.includes("closing") || value.includes("hours") || value.includes("what time");
 }
 function parseMenuOptions(raw) {
   const lines = (raw ?? "").split(/\r?\n/).map((line2) => line2.trim()).filter(Boolean);
@@ -72619,12 +72631,52 @@ function handleGuidedMessage(params) {
   const flowData = parseFlowData(customer.flowData);
   const currentState = customer.flowState;
   const normalizedText = normalize(text2);
+  const now = Date.now();
+  const prevText = String(flowData.lastUserText ?? "");
+  const prevAt = Number(flowData.lastUserTextAt ?? 0);
+  const isDuplicateText = normalizedText.length > 0 && prevText === normalizedText && prevAt > 0 && now - prevAt <= DUPLICATE_TEXT_WINDOW_MS;
+  if (isDuplicateText) {
+    const nextData = {
+      ...flowData,
+      lastUserText: normalizedText,
+      lastUserTextAt: now
+    };
+    const lastHintAt = Number(flowData.lastDuplicateHintAt ?? 0);
+    if (lastHintAt <= 0 || now - lastHintAt > DUPLICATE_HINT_COOLDOWN_MS) {
+      nextData.lastDuplicateHintAt = now;
+      return replyResult(
+        "I already got that message. Please wait a moment or choose the next option.",
+        "none",
+        currentState,
+        nextData
+      );
+    }
+    return replyResult("", "none", currentState, nextData);
+  }
+  flowData.lastUserText = normalizedText;
+  flowData.lastUserTextAt = now;
   if (detectGreetingWithCustomKeywords(text2, settings.greetingKeywords)) {
+    const lastWelcomeSentAt = Number(flowData.lastWelcomeSentAt ?? 0);
+    const withinWelcomeCooldown = lastWelcomeSentAt > 0 && now - lastWelcomeSentAt < WELCOME_COOLDOWN_MS;
+    const nextData = {
+      ...flowData,
+      lastUserText: normalizedText,
+      lastUserTextAt: now
+    };
+    if (withinWelcomeCooldown) {
+      return replyResult(
+        "You already have menu. Reply 1-5.",
+        "faq",
+        "awaiting_menu_option",
+        nextData
+      );
+    }
+    nextData.lastWelcomeSentAt = now;
     return replyResult(
       buildGreetingReply(settings, fallbackBusinessName),
       "faq",
       "awaiting_menu_option",
-      {}
+      nextData
     );
   }
   if (normalizedText === "cancel") {
@@ -72633,12 +72685,110 @@ function handleGuidedMessage(params) {
   if (normalizedText === "menu") {
     return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
   }
+  if (currentState === "awaiting_menu_option" && normalizedText === "back") {
+    return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+  }
+  const isBookingFlowState = currentState === "awaiting_booking_category" || currentState === "awaiting_booking_service" || currentState === "awaiting_booking_date" || currentState === "awaiting_booking_time" || currentState === "awaiting_booking_name";
+  if (isBookingFlowState && isHoursQuery(text2)) {
+    return replyResult(
+      `${buildHoursReply(settings)}
+
+Do you want to continue booking? Reply 1-5 or type back.`,
+      "faq",
+      currentState,
+      resetInvalidCount(flowData)
+    );
+  }
+  if (isBookingFlowState) {
+    const action = parseAction(text2);
+    if (action === "location") {
+      return replyResult(
+        `${buildLocationReply(settings)}
+
+Do you want to continue booking? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
+    if (action === "payment") {
+      return replyResult(
+        `${buildPaymentReply(settings)}
+
+Do you want to continue booking? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
+    if (action === "staff") {
+      return replyResult(
+        `${buildStaffReply(settings)}
+
+Do you want to continue booking? Reply 1-5 or type back.`,
+        "none",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
+    if (action === "services") {
+      return replyResult(
+        `${buildServicesReply(services, settings.currency)}
+
+Do you want to continue booking? Reply 1-5 or type back.`,
+        "service",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
+  }
   const directMenuSelection = findMenuSelection(text2, menuOptions);
   const shouldUseGlobalMenuSelection = !currentState || currentState === "awaiting_menu_option" || directMenuSelection != null && normalize(directMenuSelection.label) === normalizedText;
   if (shouldUseGlobalMenuSelection && directMenuSelection) {
     return handleMenuAction(directMenuSelection.action, settings, services);
   }
   if (currentState === "awaiting_menu_option") {
+    if (isHoursQuery(text2)) {
+      return replyResult(
+        `${buildHoursReply(settings)}
+
+Please choose from menu: 1-5 (or type back).`,
+        "faq",
+        "awaiting_menu_option",
+        resetInvalidCount(flowData)
+      );
+    }
+    const menuIntent = parseAction(text2);
+    if (menuIntent === "location") {
+      return replyResult(
+        `${buildLocationReply(settings)}
+
+Please choose from menu: 1-5 (or type back).`,
+        "faq",
+        "awaiting_menu_option",
+        resetInvalidCount(flowData)
+      );
+    }
+    if (menuIntent === "payment") {
+      return replyResult(
+        `${buildPaymentReply(settings)}
+
+Please choose from menu: 1-5 (or type back).`,
+        "faq",
+        "awaiting_menu_option",
+        resetInvalidCount(flowData)
+      );
+    }
+    if (menuIntent === "staff") {
+      return replyResult(
+        `${buildStaffReply(settings)}
+
+Please choose from menu: 1-5 (or type back).`,
+        "none",
+        "awaiting_menu_option",
+        resetInvalidCount(flowData)
+      );
+    }
     const selection = directMenuSelection;
     if (!selection) {
       const nextData = incrementInvalidCount(flowData);
@@ -72688,6 +72838,55 @@ function handleGuidedMessage(params) {
     }
   }
   if (currentState === "awaiting_service_category") {
+    if (isHoursQuery(text2)) {
+      return replyResult(
+        `${buildHoursReply(settings)}
+
+Do you want to continue services? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
+    const serviceFlowIntent = parseAction(text2);
+    if (serviceFlowIntent === "location") {
+      return replyResult(
+        `${buildLocationReply(settings)}
+
+Do you want to continue services? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
+    if (serviceFlowIntent === "payment") {
+      return replyResult(
+        `${buildPaymentReply(settings)}
+
+Do you want to continue services? Reply 1-5 or type back.`,
+        "faq",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
+    if (serviceFlowIntent === "staff") {
+      return replyResult(
+        `${buildStaffReply(settings)}
+
+Do you want to continue services? Reply 1-5 or type back.`,
+        "none",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
+    if (serviceFlowIntent === "booking") {
+      return replyResult(
+        "Do you want to switch to booking now? Reply 2 for Book Appointment, or type back to continue services.",
+        "booking",
+        currentState,
+        resetInvalidCount(flowData)
+      );
+    }
     const categories = listCategories(services);
     const category = findCategorySelection(text2, categories);
     if (!category) {
@@ -72781,7 +72980,7 @@ function handleGuidedMessage(params) {
     const parsedTime = parseTimeInput(text2.trim());
     if (!parsedTime.ok) {
       const nextData = incrementInvalidCount(flowData);
-      if (shouldAutoCancelFlow(nextData)) return autoCancelReply();
+      if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(
         withRetryGuard("Please enter a valid time like 04:00 PM or 16:00.", nextData),
         "booking",
@@ -72794,8 +72993,8 @@ function handleGuidedMessage(params) {
       if (date6.ok) {
         const today = startOfDay(/* @__PURE__ */ new Date());
         if (date6.date.getTime() === today.getTime()) {
-          const now = /* @__PURE__ */ new Date();
-          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          const now2 = /* @__PURE__ */ new Date();
+          const nowMinutes = now2.getHours() * 60 + now2.getMinutes();
           if (parsedTime.minutes <= nowMinutes) {
             const nextData = incrementInvalidCount(flowData);
             if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
@@ -72854,6 +73053,22 @@ var DEFAULT_SYSTEM_PROMPT = `You are a helpful WhatsApp assistant for a business
 Answer only business-related questions. Keep answers short (under 100 words).
 Do not answer unrelated questions \u2014 politely decline and redirect to business topics.
 If the customer asks something you don't know, suggest they contact the business directly.`;
+var GLOBAL_DUPLICATE_WINDOW_MS = 15e3;
+var GLOBAL_DUPLICATE_HINT_COOLDOWN_MS = 15e3;
+var CUSTOMER_RATE_LIMIT_WINDOW_MS = 6e4;
+var CUSTOMER_RATE_LIMIT_MAX = 15;
+function normalizeIncomingText(text2) {
+  return text2.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function parseFlowMeta(raw) {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 async function getBusinessSystemPrompt(businessId) {
   const rows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
   const s = rows[0];
@@ -72995,6 +73210,53 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
   const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
   const faqs = await db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
   await logMessage(customer.id, businessId, "inbound", text2, "none");
+  {
+    const meta = parseFlowMeta(customer.flowData);
+    const now = Date.now();
+    const windowStart = typeof meta["rlWindowStartAt"] === "number" ? meta["rlWindowStartAt"] : 0;
+    const withinWindow = windowStart > 0 && now - windowStart < CUSTOMER_RATE_LIMIT_WINDOW_MS;
+    const nextCount = withinWindow ? (typeof meta["rlCount"] === "number" ? meta["rlCount"] : 0) + 1 : 1;
+    meta["rlWindowStartAt"] = withinWindow ? windowStart : now;
+    meta["rlCount"] = nextCount;
+    if (nextCount > CUSTOMER_RATE_LIMIT_MAX) {
+      const lastWarnAt = typeof meta["rlLastWarnAt"] === "number" ? meta["rlLastWarnAt"] : 0;
+      if (!withinWindow || lastWarnAt < meta["rlWindowStartAt"]) {
+        meta["rlLastWarnAt"] = now;
+        await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+        const reply = "You're sending messages too quickly. Please wait a minute and try again.";
+        const result2 = await sendWhatsAppMessage(phone, reply, creds);
+        if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+        await logMessage(customer.id, businessId, "outbound", reply, "none");
+      } else {
+        await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+        logger.info({ phone, businessId }, "Rate-limited message suppressed (no outbound reply)");
+      }
+      return;
+    }
+    if (!customer.flowState) {
+      const normalized = normalizeIncomingText(text2);
+      const lastText = typeof meta["lastGlobalText"] === "string" ? meta["lastGlobalText"] : "";
+      const lastAt = typeof meta["lastGlobalTextAt"] === "number" ? meta["lastGlobalTextAt"] : 0;
+      const lastHintAt = typeof meta["lastGlobalDuplicateHintAt"] === "number" ? meta["lastGlobalDuplicateHintAt"] : 0;
+      const isDuplicate = normalized.length > 0 && normalized === lastText && lastAt > 0 && now - lastAt <= GLOBAL_DUPLICATE_WINDOW_MS;
+      meta["lastGlobalText"] = normalized;
+      meta["lastGlobalTextAt"] = now;
+      await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+      if (isDuplicate) {
+        if (lastHintAt <= 0 || now - lastHintAt > GLOBAL_DUPLICATE_HINT_COOLDOWN_MS) {
+          meta["lastGlobalDuplicateHintAt"] = now;
+          await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+          const reply = "I already got that message. Please wait a moment or choose the next option.";
+          const result2 = await sendWhatsAppMessage(phone, reply, creds);
+          if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+          await logMessage(customer.id, businessId, "outbound", reply, "none");
+        } else {
+          logger.info({ phone, businessId }, "Global duplicate message suppressed (no outbound reply)");
+        }
+        return;
+      }
+    }
+  }
   const ratingValue = detectRatingReply(text2);
   if (ratingValue !== null) {
     const [pendingRatingBooking] = await db.select().from(bookingsTable).where(
@@ -73040,9 +73302,13 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
         status: "pending"
       });
     }
-    const result2 = await sendWhatsAppMessage(phone, guided.reply, creds);
-    if (!result2.ok) await recordDeliveryFailure(businessId, phone, guided.reply, result2, "bot");
-    await logMessage(customer.id, businessId, "outbound", guided.reply, guided.replyType);
+    if (guided.reply.trim().length > 0) {
+      const result2 = await sendWhatsAppMessage(phone, guided.reply, creds);
+      if (!result2.ok) await recordDeliveryFailure(businessId, phone, guided.reply, result2, "bot");
+      await logMessage(customer.id, businessId, "outbound", guided.reply, guided.replyType);
+    } else {
+      logger.info({ phone, businessId }, "Guided duplicate message suppressed (no outbound reply)");
+    }
     logger.info({ phone, businessId, flowState: guided.flowState }, "Guided menu flow handled message");
     return;
   }
@@ -74574,6 +74840,22 @@ var settings_default = router12;
 // src/routes/simulate.ts
 var import_express13 = __toESM(require_express2(), 1);
 var router13 = (0, import_express13.Router)();
+var GLOBAL_DUPLICATE_WINDOW_MS2 = 15e3;
+var GLOBAL_DUPLICATE_HINT_COOLDOWN_MS2 = 15e3;
+var CUSTOMER_RATE_LIMIT_WINDOW_MS2 = 6e4;
+var CUSTOMER_RATE_LIMIT_MAX2 = 15;
+function normalizeIncomingText2(text2) {
+  return text2.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function parseFlowMeta2(raw) {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 async function getOrCreateTestCustomer(sessionId, businessId) {
   const phone = `__testbot__:${sessionId}`;
   const existing = await db.select().from(customersTable).where(and(eq(customersTable.phone, phone), eq(customersTable.businessId, businessId))).limit(1);
@@ -74632,6 +74914,78 @@ router13.post("/simulate", async (req, res) => {
     const settingsRows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
     settings = settingsRows[0];
     const customer = await getOrCreateTestCustomer(sessionId ?? "default", businessId);
+    const meta = parseFlowMeta2(customer.flowData);
+    const now = Date.now();
+    const windowStart = typeof meta["rlWindowStartAt"] === "number" ? meta["rlWindowStartAt"] : 0;
+    const withinWindow = windowStart > 0 && now - windowStart < CUSTOMER_RATE_LIMIT_WINDOW_MS2;
+    const nextCount = withinWindow ? (typeof meta["rlCount"] === "number" ? meta["rlCount"] : 0) + 1 : 1;
+    meta["rlWindowStartAt"] = withinWindow ? windowStart : now;
+    meta["rlCount"] = nextCount;
+    if (nextCount > CUSTOMER_RATE_LIMIT_MAX2) {
+      const lastWarnAt = typeof meta["rlLastWarnAt"] === "number" ? meta["rlLastWarnAt"] : 0;
+      if (!withinWindow || lastWarnAt < meta["rlWindowStartAt"]) {
+        meta["rlLastWarnAt"] = now;
+        await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+        res.json(SimulateMessageResponse.parse({
+          replyType: "none",
+          response: "You're sending messages too quickly. Please wait a minute and try again.",
+          matchedFaqId: null,
+          matchedFaqQuestion: null,
+          matchedServiceId: null,
+          matchedServiceName: null,
+          aiTokensUsed: null
+        }));
+        return;
+      }
+      await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+      res.json(SimulateMessageResponse.parse({
+        replyType: "none",
+        response: "",
+        matchedFaqId: null,
+        matchedFaqQuestion: null,
+        matchedServiceId: null,
+        matchedServiceName: null,
+        aiTokensUsed: null
+      }));
+      return;
+    }
+    if (!customer.flowState) {
+      const normalized = normalizeIncomingText2(message);
+      const lastText = typeof meta["lastGlobalText"] === "string" ? meta["lastGlobalText"] : "";
+      const lastAt = typeof meta["lastGlobalTextAt"] === "number" ? meta["lastGlobalTextAt"] : 0;
+      const lastHintAt = typeof meta["lastGlobalDuplicateHintAt"] === "number" ? meta["lastGlobalDuplicateHintAt"] : 0;
+      const isDuplicate = normalized.length > 0 && normalized === lastText && lastAt > 0 && now - lastAt <= GLOBAL_DUPLICATE_WINDOW_MS2;
+      meta["lastGlobalText"] = normalized;
+      meta["lastGlobalTextAt"] = now;
+      if (isDuplicate) {
+        if (lastHintAt <= 0 || now - lastHintAt > GLOBAL_DUPLICATE_HINT_COOLDOWN_MS2) {
+          meta["lastGlobalDuplicateHintAt"] = now;
+          await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+          res.json(SimulateMessageResponse.parse({
+            replyType: "none",
+            response: "I already got that message. Please wait a moment or choose the next option.",
+            matchedFaqId: null,
+            matchedFaqQuestion: null,
+            matchedServiceId: null,
+            matchedServiceName: null,
+            aiTokensUsed: null
+          }));
+          return;
+        }
+        await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
+        res.json(SimulateMessageResponse.parse({
+          replyType: "none",
+          response: "",
+          matchedFaqId: null,
+          matchedFaqQuestion: null,
+          matchedServiceId: null,
+          matchedServiceName: null,
+          aiTokensUsed: null
+        }));
+        return;
+      }
+    }
+    await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
     const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
     const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
     const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
@@ -74660,9 +75014,11 @@ router13.post("/simulate", async (req, res) => {
           status: "pending"
         });
       }
+      const guidedReply = guided.reply;
+      const guidedType = guided.reply.trim().length > 0 ? guided.replyType : "none";
       res.json(SimulateMessageResponse.parse({
-        replyType: guided.replyType,
-        response: guided.reply,
+        replyType: guidedType,
+        response: guidedReply,
         matchedFaqId: null,
         matchedFaqQuestion: null,
         matchedServiceId: null,
