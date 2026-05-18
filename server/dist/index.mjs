@@ -73111,6 +73111,7 @@ var CUSTOMER_RATE_LIMIT_WINDOW_MS = 6e4;
 var CUSTOMER_RATE_LIMIT_MAX = 15;
 var STALE_INBOUND_WINDOW_MS = 2 * 60 * 1e3;
 var INBOUND_MESSAGE_ID_CACHE_LIMIT = 100;
+var GUIDED_NO_MATCH_HINT_COOLDOWN_MS = 1e4;
 function normalizeIncomingText(text2) {
   return text2.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -73301,12 +73302,14 @@ async function handleIncomingMessage(phone, text2, phoneNumberId, inboundMessage
     earlyMeta["processedInboundMessageIds"] = nextSeen;
     await db.update(customersTable).set({ flowData: JSON.stringify(earlyMeta) }).where(eq(customersTable.id, customer.id));
   }
-  const settingsRows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
+  const [settingsRows, services, faqs] = await Promise.all([
+    db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1),
+    db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true))),
+    db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)))
+  ]);
   const settings = settingsRows[0];
   const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
   const aiEnabledForBusiness = settings?.aiFallbackEnabled ?? aiDefaultEnabled;
-  const services = await db.select().from(servicesTable).where(and(eq(servicesTable.businessId, businessId), eq(servicesTable.active, true)));
-  const faqs = await db.select().from(faqsTable).where(and(eq(faqsTable.businessId, businessId), eq(faqsTable.active, true)));
   await logMessage(customer.id, businessId, "inbound", text2, "none");
   {
     const meta = parseFlowMeta(customer.flowData);
@@ -73505,6 +73508,15 @@ async function handleIncomingMessage(phone, text2, phoneNumberId, inboundMessage
     return;
   }
   if (customer.flowState) {
+    const meta = parseFlowMeta(customer.flowData);
+    const now = Date.now();
+    const lastGuidedNoMatchAt = typeof meta["lastGuidedNoMatchAt"] === "number" ? meta["lastGuidedNoMatchAt"] : 0;
+    if (lastGuidedNoMatchAt > 0 && now - lastGuidedNoMatchAt < GUIDED_NO_MATCH_HINT_COOLDOWN_MS) {
+      logger.info({ phone, businessId, flowState: customer.flowState }, "Guided flow no-match suppressed by cooldown");
+      return;
+    }
+    meta["lastGuidedNoMatchAt"] = now;
+    await db.update(customersTable).set({ flowData: JSON.stringify(meta) }).where(eq(customersTable.id, customer.id));
     const guidedNoMatchReply = "I didn't get that. Please choose 1-5 or type menu/back.";
     const result2 = await sendWhatsAppMessage(phone, guidedNoMatchReply, creds);
     if (!result2.ok) await recordDeliveryFailure(businessId, phone, guidedNoMatchReply, result2, "bot");
