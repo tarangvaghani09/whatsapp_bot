@@ -16,6 +16,8 @@ const GLOBAL_DUPLICATE_WINDOW_MS = 15_000;
 const GLOBAL_DUPLICATE_HINT_COOLDOWN_MS = 15_000;
 const CUSTOMER_RATE_LIMIT_WINDOW_MS = 60_000;
 const CUSTOMER_RATE_LIMIT_MAX = 15;
+const STALE_INBOUND_WINDOW_MS = 2 * 60 * 1000;
+const INBOUND_MESSAGE_ID_CACHE_LIMIT = 100;
 
 function normalizeIncomingText(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -250,7 +252,13 @@ function getSafeNoMatchReply(
   return `I couldn't find an exact match for your question at ${name}. Please contact our support team and we'll help you right away.`;
 }
 
-export async function handleIncomingMessage(phone: string, text: string, phoneNumberId: string): Promise<void> {
+export async function handleIncomingMessage(
+  phone: string,
+  text: string,
+  phoneNumberId: string,
+  inboundMessageId?: string,
+  inboundMessageTimestampMs?: number,
+): Promise<void> {
   const [business] = await db.select().from(businessesTable)
     .where(eq(businessesTable.whatsappPhoneNumberId, phoneNumberId))
     .limit(1);
@@ -267,6 +275,32 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
       : undefined;
 
   const customer = await getOrCreateCustomer(phone, businessId);
+  const earlyMeta = parseFlowMeta((customer as { flowData?: string | null }).flowData);
+  const nowEarly = Date.now();
+
+  if (typeof inboundMessageTimestampMs === "number" && inboundMessageTimestampMs > 0) {
+    const age = nowEarly - inboundMessageTimestampMs;
+    if (age > STALE_INBOUND_WINDOW_MS) {
+      logger.info({ phone, businessId, inboundMessageId, ageMs: age }, "Dropped stale inbound message");
+      return;
+    }
+  }
+
+  if (inboundMessageId) {
+    const seen = Array.isArray(earlyMeta["processedInboundMessageIds"])
+      ? (earlyMeta["processedInboundMessageIds"] as unknown[]).filter((x): x is string => typeof x === "string")
+      : [];
+    if (seen.includes(inboundMessageId)) {
+      logger.info({ phone, businessId, inboundMessageId }, "Dropped duplicate inbound message-id");
+      return;
+    }
+    const nextSeen = [...seen, inboundMessageId].slice(-INBOUND_MESSAGE_ID_CACHE_LIMIT);
+    earlyMeta["processedInboundMessageIds"] = nextSeen;
+    await db.update(customersTable)
+      .set({ flowData: JSON.stringify(earlyMeta) })
+      .where(eq(customersTable.id, customer.id));
+  }
+
   const settingsRows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
   const settings = settingsRows[0];
   const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";

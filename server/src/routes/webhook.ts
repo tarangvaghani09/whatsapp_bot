@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import crypto from "node:crypto";
 
 const router: IRouter = Router();
+const inboundQueues = new Map<string, Promise<void>>();
 
 router.get("/webhook", async (req, res): Promise<void> => {
   const mode = req.query["hub.mode"];
@@ -74,11 +75,28 @@ router.post("/webhook", async (req, res): Promise<void> => {
   const msg = extractMessageFromWebhook(req.body);
   if (!msg) return;
 
-  try {
-    await handleIncomingMessage(msg.from, msg.text, msg.phoneNumberId);
-  } catch (err) {
-    logger.error({ err }, "Error handling incoming message");
-  }
+  const queueKey = `${msg.phoneNumberId}:${msg.from}`;
+  const prev = inboundQueues.get(queueKey) ?? Promise.resolve();
+  const next = prev
+    .catch(() => undefined)
+    .then(async () => {
+      try {
+        await handleIncomingMessage(
+          msg.from,
+          msg.text,
+          msg.phoneNumberId,
+          msg.messageId,
+          msg.messageTimestampMs,
+        );
+      } catch (err) {
+        logger.error({ err }, "Error handling incoming message");
+      }
+    })
+    .finally(() => {
+      if (inboundQueues.get(queueKey) === next) inboundQueues.delete(queueKey);
+    });
+
+  inboundQueues.set(queueKey, next);
 });
 
 export default router;

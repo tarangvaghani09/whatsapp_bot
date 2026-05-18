@@ -48,7 +48,13 @@ export async function sendWhatsAppMessage(to: string, message: string, creds?: B
   return { ok: true };
 }
 
-export function extractMessageFromWebhook(body: unknown): { from: string; text: string; phoneNumberId: string } | null {
+export function extractMessageFromWebhook(body: unknown): {
+  from: string;
+  text: string;
+  phoneNumberId: string;
+  messageId?: string;
+  messageTimestampMs?: number;
+} | null {
   try {
     const entry = (body as any)?.entry?.[0];
     const changes = entry?.changes?.[0];
@@ -62,6 +68,8 @@ export function extractMessageFromWebhook(body: unknown): { from: string; text: 
       from: msg.from as string,
       text: (msg.text?.body ?? "") as string,
       phoneNumberId,
+      messageId: (msg.id as string | undefined) ?? undefined,
+      messageTimestampMs: msg.timestamp ? Number(msg.timestamp) * 1000 : undefined,
     };
   } catch {
     return null;

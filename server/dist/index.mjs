@@ -62931,7 +62931,9 @@ function extractMessageFromWebhook(body) {
     return {
       from: msg.from,
       text: msg.text?.body ?? "",
-      phoneNumberId
+      phoneNumberId,
+      messageId: msg.id ?? void 0,
+      messageTimestampMs: msg.timestamp ? Number(msg.timestamp) * 1e3 : void 0
     };
   } catch {
     return null;
@@ -73107,6 +73109,8 @@ var GLOBAL_DUPLICATE_WINDOW_MS = 15e3;
 var GLOBAL_DUPLICATE_HINT_COOLDOWN_MS = 15e3;
 var CUSTOMER_RATE_LIMIT_WINDOW_MS = 6e4;
 var CUSTOMER_RATE_LIMIT_MAX = 15;
+var STALE_INBOUND_WINDOW_MS = 2 * 60 * 1e3;
+var INBOUND_MESSAGE_ID_CACHE_LIMIT = 100;
 function normalizeIncomingText(text2) {
   return text2.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -73269,7 +73273,7 @@ function getSafeNoMatchReply(settings, fallbackName) {
   }
   return `I couldn't find an exact match for your question at ${name}. Please contact our support team and we'll help you right away.`;
 }
-async function handleIncomingMessage(phone, text2, phoneNumberId) {
+async function handleIncomingMessage(phone, text2, phoneNumberId, inboundMessageId, inboundMessageTimestampMs) {
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.whatsappPhoneNumberId, phoneNumberId)).limit(1);
   if (!business) {
     logger.warn({ phoneNumberId }, "No business found for phoneNumberId \u2014 ignoring message");
@@ -73278,6 +73282,25 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
   const businessId = business.id;
   const creds = business.whatsappPhoneNumberId && business.whatsappAccessToken ? { phoneNumberId: business.whatsappPhoneNumberId, accessToken: decryptSecret(business.whatsappAccessToken) } : void 0;
   const customer = await getOrCreateCustomer(phone, businessId);
+  const earlyMeta = parseFlowMeta(customer.flowData);
+  const nowEarly = Date.now();
+  if (typeof inboundMessageTimestampMs === "number" && inboundMessageTimestampMs > 0) {
+    const age = nowEarly - inboundMessageTimestampMs;
+    if (age > STALE_INBOUND_WINDOW_MS) {
+      logger.info({ phone, businessId, inboundMessageId, ageMs: age }, "Dropped stale inbound message");
+      return;
+    }
+  }
+  if (inboundMessageId) {
+    const seen = Array.isArray(earlyMeta["processedInboundMessageIds"]) ? earlyMeta["processedInboundMessageIds"].filter((x) => typeof x === "string") : [];
+    if (seen.includes(inboundMessageId)) {
+      logger.info({ phone, businessId, inboundMessageId }, "Dropped duplicate inbound message-id");
+      return;
+    }
+    const nextSeen = [...seen, inboundMessageId].slice(-INBOUND_MESSAGE_ID_CACHE_LIMIT);
+    earlyMeta["processedInboundMessageIds"] = nextSeen;
+    await db.update(customersTable).set({ flowData: JSON.stringify(earlyMeta) }).where(eq(customersTable.id, customer.id));
+  }
   const settingsRows = await db.select().from(settingsTable).where(eq(settingsTable.businessId, businessId)).limit(1);
   const settings = settingsRows[0];
   const aiDefaultEnabled = process.env.AI_FALLBACK_DEFAULT_ENABLED !== "false";
@@ -73507,6 +73530,7 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
 // src/routes/webhook.ts
 import crypto3 from "node:crypto";
 var router2 = (0, import_express2.Router)();
+var inboundQueues = /* @__PURE__ */ new Map();
 router2.get("/webhook", async (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -73555,11 +73579,24 @@ router2.post("/webhook", async (req, res) => {
   res.sendStatus(200);
   const msg = extractMessageFromWebhook(req.body);
   if (!msg) return;
-  try {
-    await handleIncomingMessage(msg.from, msg.text, msg.phoneNumberId);
-  } catch (err) {
-    logger.error({ err }, "Error handling incoming message");
-  }
+  const queueKey = `${msg.phoneNumberId}:${msg.from}`;
+  const prev = inboundQueues.get(queueKey) ?? Promise.resolve();
+  const next = prev.catch(() => void 0).then(async () => {
+    try {
+      await handleIncomingMessage(
+        msg.from,
+        msg.text,
+        msg.phoneNumberId,
+        msg.messageId,
+        msg.messageTimestampMs
+      );
+    } catch (err) {
+      logger.error({ err }, "Error handling incoming message");
+    }
+  }).finally(() => {
+    if (inboundQueues.get(queueKey) === next) inboundQueues.delete(queueKey);
+  });
+  inboundQueues.set(queueKey, next);
 });
 var webhook_default = router2;
 
