@@ -91,13 +91,31 @@ function normalize(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function isQuickOk(text: string): boolean {
+  const value = normalize(text);
+  return value === "ok" || value === "okay" || value === "okk" || value === "k" || value === "got it";
+}
+
+function isQuickBye(text: string): boolean {
+  const value = normalize(text);
+  return value === "bye" || value === "goodbye" || value === "see you" || value === "cya";
+}
+
 function parseAction(raw: string): MenuAction {
   const value = normalize(raw);
   if (!value) return "unknown";
   if (value.includes("service") || value.includes("price")) return "services";
   if (value.includes("book") || value.includes("appointment") || value.includes("visit")) return "booking";
   if (value.includes("hour") || value.includes("timing") || value.includes("time")) return "hours";
-  if (value.includes("location") || value.includes("direction") || value.includes("address")) return "location";
+  if (
+    value.includes("location") ||
+    value.includes("direction") ||
+    value.includes("address") ||
+    value.includes("where") ||
+    value.includes("map") ||
+    value.includes("parking") ||
+    value.includes("park")
+  ) return "location";
   if (value.includes("payment") || value.includes("card") || value.includes("upi") || value.includes("cash")) return "payment";
   if (value.includes("staff") || value.includes("reception") || value.includes("support") || value.includes("talk")) return "staff";
   return "unknown";
@@ -108,11 +126,15 @@ function isHoursQuery(text: string): boolean {
   if (!value) return false;
   return (
     value === "open" ||
+    value === "close" ||
+    value.includes("close time") ||
     value.includes("timing") ||
     value.includes("opening") ||
     value.includes("closing") ||
+    value.includes("close") ||
     value.includes("hours") ||
-    value.includes("what time")
+    value.includes("what time") ||
+    value.includes("time")
   );
 }
 
@@ -457,6 +479,12 @@ function findServiceSelection(text: string, services: GuidedService[]): GuidedSe
   }) ?? null;
 }
 
+function isNumericSelectionInput(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return Number.isInteger(Number(trimmed));
+}
+
 function buildCategoryPrompt(title: string, categories: string[]): string {
   return `${title}\n${categories.map((category, index) => `${index + 1}. ${category}`).join("\n")}`;
 }
@@ -645,6 +673,20 @@ export function handleGuidedMessage(params: {
     return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
   }
 
+  if (isQuickOk(text)) {
+    const reply = currentState
+      ? "Okay."
+      : "Okay. Type 'menu' if you want options.";
+    return replyResult(reply, "none", currentState, resetInvalidCount(flowData));
+  }
+
+  if (isQuickBye(text)) {
+    const reply = currentState
+      ? "Thank you. You can continue anytime."
+      : "Thank you. Have a great day!";
+    return replyResult(reply, "none", currentState, resetInvalidCount(flowData));
+  }
+
   if (currentState === "awaiting_menu_option" && normalizedText === "back") {
     return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
   }
@@ -748,6 +790,8 @@ export function handleGuidedMessage(params: {
 
     const selection = directMenuSelection;
     if (!selection) {
+      // Let bot-handler run FAQ/service/booking matching for free-text queries first.
+      if (!isNumericSelectionInput(text)) return null;
       const nextData = incrementInvalidCount(flowData);
       if (shouldAutoCancelFlow(nextData)) {
         return replyResult(
@@ -843,6 +887,8 @@ export function handleGuidedMessage(params: {
     const categories = listCategories(services);
     const category = findCategorySelection(text, categories);
     if (!category) {
+      // Let bot-handler run FAQ/service/booking matching for free-text queries first.
+      if (!isNumericSelectionInput(text)) return null;
       const nextData = incrementInvalidCount({ ...flowData, intent: "services" });
       if (shouldAutoCancelFlow(nextData)) return autoCancelServiceReply(settings);
       return replyResult(withRetryGuard(buildCategoryPrompt("Choose a service category:", categories), nextData), "service", currentState, nextData);
@@ -855,6 +901,8 @@ export function handleGuidedMessage(params: {
     const categories = listCategories(services);
     const category = findCategorySelection(text, categories);
     if (!category) {
+      // Let bot-handler run FAQ/service/booking matching for free-text queries first.
+      if (!isNumericSelectionInput(text)) return null;
       const nextData = incrementInvalidCount({ ...flowData, intent: "booking" });
       if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(withRetryGuard(buildCategoryPrompt("Choose a booking category:", categories), nextData), "booking", currentState, nextData);

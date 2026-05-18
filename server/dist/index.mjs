@@ -72087,6 +72087,27 @@ function scoreKeywords(message, keywords) {
   }
   return score;
 }
+function tokenSet(text2) {
+  return new Set(normalizeText(text2).split(/\s+/).filter(Boolean));
+}
+function genderBoostScore(message, service) {
+  const msg = tokenSet(message);
+  if (msg.size === 0) return 0;
+  const womenTokens = /* @__PURE__ */ new Set(["women", "woman", "female", "ladies", "lady", "girls", "girl"]);
+  const menTokens = /* @__PURE__ */ new Set(["men", "man", "male", "gents", "gent", "boys", "boy"]);
+  const asksWomen = [...womenTokens].some((t) => msg.has(t));
+  const asksMen = [...menTokens].some((t) => msg.has(t));
+  if (!asksWomen && !asksMen) return 0;
+  const serviceTokens = tokenSet(`${service.name} ${(service.keywords ?? []).join(" ")}`);
+  const serviceIsWomen = [...womenTokens].some((t) => serviceTokens.has(t));
+  const serviceIsMen = [...menTokens].some((t) => serviceTokens.has(t));
+  let boost = 0;
+  if (asksWomen && serviceIsWomen) boost += 3;
+  if (asksMen && serviceIsMen) boost += 3;
+  if (asksWomen && serviceIsMen) boost -= 2;
+  if (asksMen && serviceIsWomen) boost -= 2;
+  return boost;
+}
 function matchFaq(message, faqs) {
   return matchFaqWithScore(message, faqs).faq;
 }
@@ -72108,7 +72129,8 @@ function matchService(message, services) {
   let bestService = null;
   let bestScore = 0;
   for (const service of active) {
-    const score = scoreKeywords(message, service.keywords ?? []);
+    const baseScore = scoreKeywords(message, service.keywords ?? []);
+    const score = baseScore + genderBoostScore(message, service);
     if (score > bestScore) {
       bestScore = score;
       bestService = service;
@@ -72238,13 +72260,21 @@ var WELCOME_COOLDOWN_MS = 5 * 60 * 1e3;
 function normalize(text2) {
   return text2.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
+function isQuickOk(text2) {
+  const value = normalize(text2);
+  return value === "ok" || value === "okay" || value === "okk" || value === "k" || value === "got it";
+}
+function isQuickBye(text2) {
+  const value = normalize(text2);
+  return value === "bye" || value === "goodbye" || value === "see you" || value === "cya";
+}
 function parseAction(raw) {
   const value = normalize(raw);
   if (!value) return "unknown";
   if (value.includes("service") || value.includes("price")) return "services";
   if (value.includes("book") || value.includes("appointment") || value.includes("visit")) return "booking";
   if (value.includes("hour") || value.includes("timing") || value.includes("time")) return "hours";
-  if (value.includes("location") || value.includes("direction") || value.includes("address")) return "location";
+  if (value.includes("location") || value.includes("direction") || value.includes("address") || value.includes("where") || value.includes("map") || value.includes("parking") || value.includes("park")) return "location";
   if (value.includes("payment") || value.includes("card") || value.includes("upi") || value.includes("cash")) return "payment";
   if (value.includes("staff") || value.includes("reception") || value.includes("support") || value.includes("talk")) return "staff";
   return "unknown";
@@ -72252,7 +72282,7 @@ function parseAction(raw) {
 function isHoursQuery(text2) {
   const value = normalize(text2);
   if (!value) return false;
-  return value === "open" || value.includes("timing") || value.includes("opening") || value.includes("closing") || value.includes("hours") || value.includes("what time");
+  return value === "open" || value === "close" || value.includes("close time") || value.includes("timing") || value.includes("opening") || value.includes("closing") || value.includes("close") || value.includes("hours") || value.includes("what time") || value.includes("time");
 }
 function parseMenuOptions(raw) {
   const lines = (raw ?? "").split(/\r?\n/).map((line2) => line2.trim()).filter(Boolean);
@@ -72544,6 +72574,11 @@ function findServiceSelection(text2, services) {
     return normalized === name || normalized.includes(name) || name.includes(normalized);
   }) ?? null;
 }
+function isNumericSelectionInput(text2) {
+  const trimmed = text2.trim();
+  if (!trimmed) return false;
+  return Number.isInteger(Number(trimmed));
+}
 function buildCategoryPrompt(title, categories) {
   return `${title}
 ${categories.map((category, index2) => `${index2 + 1}. ${category}`).join("\n")}`;
@@ -72634,12 +72669,14 @@ function handleGuidedMessage(params) {
   const now = Date.now();
   const prevText = String(flowData.lastUserText ?? "");
   const prevAt = Number(flowData.lastUserTextAt ?? 0);
-  const isDuplicateText = normalizedText.length > 0 && prevText === normalizedText && prevAt > 0 && now - prevAt <= DUPLICATE_TEXT_WINDOW_MS;
+  const prevState = flowData.lastUserState ?? null;
+  const isDuplicateText = normalizedText.length > 0 && prevText === normalizedText && prevState === currentState && prevAt > 0 && now - prevAt <= DUPLICATE_TEXT_WINDOW_MS;
   if (isDuplicateText) {
     const nextData = {
       ...flowData,
       lastUserText: normalizedText,
-      lastUserTextAt: now
+      lastUserTextAt: now,
+      lastUserState: currentState
     };
     const lastHintAt = Number(flowData.lastDuplicateHintAt ?? 0);
     if (lastHintAt <= 0 || now - lastHintAt > DUPLICATE_HINT_COOLDOWN_MS) {
@@ -72655,13 +72692,15 @@ function handleGuidedMessage(params) {
   }
   flowData.lastUserText = normalizedText;
   flowData.lastUserTextAt = now;
+  flowData.lastUserState = currentState;
   if (detectGreetingWithCustomKeywords(text2, settings.greetingKeywords)) {
     const lastWelcomeSentAt = Number(flowData.lastWelcomeSentAt ?? 0);
     const withinWelcomeCooldown = lastWelcomeSentAt > 0 && now - lastWelcomeSentAt < WELCOME_COOLDOWN_MS;
     const nextData = {
       ...flowData,
       lastUserText: normalizedText,
-      lastUserTextAt: now
+      lastUserTextAt: now,
+      lastUserState: "awaiting_menu_option"
     };
     if (withinWelcomeCooldown) {
       return replyResult(
@@ -72684,6 +72723,14 @@ function handleGuidedMessage(params) {
   }
   if (normalizedText === "menu") {
     return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
+  }
+  if (isQuickOk(text2)) {
+    const reply = currentState ? "Okay." : "Okay. Type 'menu' if you want options.";
+    return replyResult(reply, "none", currentState, resetInvalidCount(flowData));
+  }
+  if (isQuickBye(text2)) {
+    const reply = currentState ? "Thank you. You can continue anytime." : "Thank you. Have a great day!";
+    return replyResult(reply, "none", currentState, resetInvalidCount(flowData));
   }
   if (currentState === "awaiting_menu_option" && normalizedText === "back") {
     return replyResult(buildGreetingReply(settings, fallbackBusinessName), "faq", "awaiting_menu_option", {});
@@ -72791,6 +72838,7 @@ Please choose from menu: 1-5 (or type back).`,
     }
     const selection = directMenuSelection;
     if (!selection) {
+      if (!isNumericSelectionInput(text2)) return null;
       const nextData = incrementInvalidCount(flowData);
       if (shouldAutoCancelFlow(nextData)) {
         return replyResult(
@@ -72890,6 +72938,7 @@ Do you want to continue services? Reply 1-5 or type back.`,
     const categories = listCategories(services);
     const category = findCategorySelection(text2, categories);
     if (!category) {
+      if (!isNumericSelectionInput(text2)) return null;
       const nextData = incrementInvalidCount({ ...flowData, intent: "services" });
       if (shouldAutoCancelFlow(nextData)) return autoCancelServiceReply(settings);
       return replyResult(withRetryGuard(buildCategoryPrompt("Choose a service category:", categories), nextData), "service", currentState, nextData);
@@ -72901,6 +72950,7 @@ Do you want to continue services? Reply 1-5 or type back.`,
     const categories = listCategories(services);
     const category = findCategorySelection(text2, categories);
     if (!category) {
+      if (!isNumericSelectionInput(text2)) return null;
       const nextData = incrementInvalidCount({ ...flowData, intent: "booking" });
       if (shouldAutoCancelFlow(nextData)) return autoCancelReply(settings);
       return replyResult(withRetryGuard(buildCategoryPrompt("Choose a booking category:", categories), nextData), "booking", currentState, nextData);
@@ -73184,6 +73234,31 @@ function detectRatingReply(text2) {
   if (words[lower] !== void 0) return words[lower];
   return null;
 }
+function isThankYouMessage(text2) {
+  const normalized = normalizeIncomingText(text2);
+  if (!normalized) return false;
+  return normalized === "thanks" || normalized === "thank you" || normalized === "thankyou" || normalized === "thank u" || normalized === "thx" || normalized === "ty" || normalized === "tank you" || normalized === "tank u" || normalized.includes("thank you") || normalized.includes("thanks");
+}
+function isApologyMessage(text2) {
+  const normalized = normalizeIncomingText(text2);
+  if (!normalized) return false;
+  return normalized === "sorry" || normalized === "sory" || normalized === "so sorry" || normalized === "apologies" || normalized.includes("sorry");
+}
+function isConfirmationMessage(text2) {
+  const normalized = normalizeIncomingText(text2);
+  if (!normalized) return false;
+  return normalized === "ok" || normalized === "okay" || normalized === "okk" || normalized === "k" || normalized === "done" || normalized === "got it";
+}
+function isGreetingOnlyMessage(text2) {
+  const normalized = normalizeIncomingText(text2);
+  if (!normalized) return false;
+  return normalized === "hello" || normalized === "hey" || normalized === "hii" || normalized === "yo";
+}
+function isByeMessage(text2) {
+  const normalized = normalizeIncomingText(text2);
+  if (!normalized) return false;
+  return normalized === "bye" || normalized === "goodbye" || normalized === "see you" || normalized === "cya";
+}
 function getSafeNoMatchReply(settings, fallbackName) {
   const custom3 = settings?.noMatchMessage?.trim();
   if (custom3) return custom3;
@@ -73312,12 +73387,50 @@ async function handleIncomingMessage(phone, text2, phoneNumberId) {
     logger.info({ phone, businessId, flowState: guided.flowState }, "Guided menu flow handled message");
     return;
   }
+  if (!customer.flowState && isThankYouMessage(text2)) {
+    const reply = "You're welcome! Happy to help. Type 'menu' any time for options.";
+    const result2 = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Thank-you message handled");
+    return;
+  }
+  if (!customer.flowState && isApologyMessage(text2)) {
+    const reply = "No problem at all. You're absolutely fine. How can I help you?";
+    const result2 = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Apology message handled");
+    return;
+  }
+  if (!customer.flowState && isConfirmationMessage(text2)) {
+    const reply = "Perfect. Tell me what you need, or type 'menu' to see options.";
+    const result2 = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Confirmation message handled");
+    return;
+  }
+  if (!customer.flowState && isGreetingOnlyMessage(text2)) {
+    const reply = "Hello! How can I help you today? You can also type 'menu' for options.";
+    const result2 = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Short greeting message handled");
+    return;
+  }
+  if (!customer.flowState && isByeMessage(text2)) {
+    const reply = "Thank you! Have a great day. Message us anytime you need help.";
+    const result2 = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Bye message handled");
+    return;
+  }
   if (customer.flowState) {
     const strongFaq = matchFaqWithScore(text2, faqs);
     if (strongFaq.faq && strongFaq.score >= 2) {
-      const reply = `${strongFaq.faq.answer}
-
-You can continue your previous step, or type 'menu' to go back.`;
+      const reply = strongFaq.faq.answer;
       const result2 = await sendWhatsAppMessage(phone, reply, creds);
       if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
       await logMessage(customer.id, businessId, "outbound", reply, "faq");
@@ -73336,9 +73449,10 @@ You can continue your previous step, or type 'menu' to go back.`;
   const matchedFaq = matchFaq(text2, faqs);
   if (matchedFaq) {
     await db.update(faqsTable).set({ hitCount: matchedFaq.hitCount + 1 }).where(eq(faqsTable.id, matchedFaq.id));
-    const result2 = await sendWhatsAppMessage(phone, matchedFaq.answer, creds);
-    if (!result2.ok) await recordDeliveryFailure(businessId, phone, matchedFaq.answer, result2, "bot");
-    await logMessage(customer.id, businessId, "outbound", matchedFaq.answer, "faq");
+    const reply = matchedFaq.answer;
+    const result2 = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
     logger.info({ phone, businessId, faqId: matchedFaq.id }, "FAQ match \u2014 no AI call");
     return;
   }
@@ -73352,17 +73466,27 @@ You can continue your previous step, or type 'menu' to go back.`;
     return;
   }
   if (detectBookingIntent(text2)) {
-    const reply = "I'd love to help you book an appointment! Please tell me: what service you need, your preferred date, and time. Our team will confirm shortly. \u{1F4C5}";
-    await db.insert(bookingsTable).values({
-      customerId: customer.id,
-      businessId,
-      notes: text2,
-      status: "pending"
-    });
+    let reply = "I'd love to help you book an appointment! Please tell me: what service you need, your preferred date, and time. Our team will confirm shortly. \u{1F4C5}";
+    if (!customer.flowState) {
+      await db.insert(bookingsTable).values({
+        customerId: customer.id,
+        businessId,
+        notes: text2,
+        status: "pending"
+      });
+    }
     const result2 = await sendWhatsAppMessage(phone, reply, creds);
     if (!result2.ok) await recordDeliveryFailure(businessId, phone, reply, result2, "bot");
     await logMessage(customer.id, businessId, "outbound", reply, "booking");
     logger.info({ phone, businessId }, "Booking intent \u2014 no AI call");
+    return;
+  }
+  if (customer.flowState) {
+    const guidedNoMatchReply = "I didn't get that. Please choose 1-5 or type menu/back.";
+    const result2 = await sendWhatsAppMessage(phone, guidedNoMatchReply, creds);
+    if (!result2.ok) await recordDeliveryFailure(businessId, phone, guidedNoMatchReply, result2, "bot");
+    await logMessage(customer.id, businessId, "outbound", guidedNoMatchReply, "none");
+    logger.info({ phone, businessId, flowState: customer.flowState }, "Guided flow no-match handled without AI fallback");
     return;
   }
   if (!aiEnabledForBusiness) {

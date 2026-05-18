@@ -18,6 +18,33 @@ function scoreKeywords(message: string, keywords: string[]): number {
   return score;
 }
 
+function tokenSet(text: string): Set<string> {
+  return new Set(normalizeText(text).split(/\s+/).filter(Boolean));
+}
+
+function genderBoostScore(message: string, service: Service): number {
+  const msg = tokenSet(message);
+  if (msg.size === 0) return 0;
+
+  const womenTokens = new Set(["women", "woman", "female", "ladies", "lady", "girls", "girl"]);
+  const menTokens = new Set(["men", "man", "male", "gents", "gent", "boys", "boy"]);
+
+  const asksWomen = [...womenTokens].some((t) => msg.has(t));
+  const asksMen = [...menTokens].some((t) => msg.has(t));
+  if (!asksWomen && !asksMen) return 0;
+
+  const serviceTokens = tokenSet(`${service.name} ${(service.keywords ?? []).join(" ")}`);
+  const serviceIsWomen = [...womenTokens].some((t) => serviceTokens.has(t));
+  const serviceIsMen = [...menTokens].some((t) => serviceTokens.has(t));
+
+  let boost = 0;
+  if (asksWomen && serviceIsWomen) boost += 3;
+  if (asksMen && serviceIsMen) boost += 3;
+  if (asksWomen && serviceIsMen) boost -= 2;
+  if (asksMen && serviceIsWomen) boost -= 2;
+  return boost;
+}
+
 export function matchFaq(message: string, faqs: Faq[]): Faq | null {
   return matchFaqWithScore(message, faqs).faq;
 }
@@ -44,7 +71,8 @@ export function matchService(message: string, services: Service[]): Service | nu
   let bestScore = 0;
 
   for (const service of active) {
-    const score = scoreKeywords(message, service.keywords ?? []);
+    const baseScore = scoreKeywords(message, service.keywords ?? []);
+    const score = baseScore + genderBoostScore(message, service);
     if (score > bestScore) {
       bestScore = score;
       bestService = service;

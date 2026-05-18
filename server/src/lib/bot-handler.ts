@@ -199,6 +199,43 @@ function isThankYouMessage(text: string): boolean {
   );
 }
 
+function isApologyMessage(text: string): boolean {
+  const normalized = normalizeIncomingText(text);
+  if (!normalized) return false;
+  return (
+    normalized === "sorry" ||
+    normalized === "sory" ||
+    normalized === "so sorry" ||
+    normalized === "apologies" ||
+    normalized.includes("sorry")
+  );
+}
+
+function isConfirmationMessage(text: string): boolean {
+  const normalized = normalizeIncomingText(text);
+  if (!normalized) return false;
+  return (
+    normalized === "ok" ||
+    normalized === "okay" ||
+    normalized === "okk" ||
+    normalized === "k" ||
+    normalized === "done" ||
+    normalized === "got it"
+  );
+}
+
+function isGreetingOnlyMessage(text: string): boolean {
+  const normalized = normalizeIncomingText(text);
+  if (!normalized) return false;
+  return normalized === "hello" || normalized === "hey" || normalized === "hii" || normalized === "yo";
+}
+
+function isByeMessage(text: string): boolean {
+  const normalized = normalizeIncomingText(text);
+  if (!normalized) return false;
+  return normalized === "bye" || normalized === "goodbye" || normalized === "see you" || normalized === "cya";
+}
+
 function getSafeNoMatchReply(
   settings: { businessName?: string | null; phone?: string | null; email?: string | null; noMatchMessage?: string | null } | undefined,
   fallbackName: string,
@@ -388,10 +425,46 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
     return;
   }
 
+  if (!customer.flowState && isApologyMessage(text)) {
+    const reply = "No problem at all. You're absolutely fine. How can I help you?";
+    const result = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Apology message handled");
+    return;
+  }
+
+  if (!customer.flowState && isConfirmationMessage(text)) {
+    const reply = "Perfect. Tell me what you need, or type 'menu' to see options.";
+    const result = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Confirmation message handled");
+    return;
+  }
+
+  if (!customer.flowState && isGreetingOnlyMessage(text)) {
+    const reply = "Hello! How can I help you today? You can also type 'menu' for options.";
+    const result = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Short greeting message handled");
+    return;
+  }
+
+  if (!customer.flowState && isByeMessage(text)) {
+    const reply = "Thank you! Have a great day. Message us anytime you need help.";
+    const result = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
+    logger.info({ phone, businessId }, "Bye message handled");
+    return;
+  }
+
   if (customer.flowState) {
     const strongFaq = matchFaqWithScore(text, faqs);
     if (strongFaq.faq && strongFaq.score >= 2) {
-      const reply = `${strongFaq.faq.answer}\n\nYou can continue your previous step, or type 'menu' to go back.`;
+      const reply = strongFaq.faq.answer;
       const result = await sendWhatsAppMessage(phone, reply, creds);
       if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
       await logMessage(customer.id, businessId, "outbound", reply, "faq");
@@ -415,9 +488,10 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
 
   if (matchedFaq) {
     await db.update(faqsTable).set({ hitCount: matchedFaq.hitCount + 1 }).where(eq(faqsTable.id, matchedFaq.id));
-    const result = await sendWhatsAppMessage(phone, matchedFaq.answer, creds);
-    if (!result.ok) await recordDeliveryFailure(businessId, phone, matchedFaq.answer, result, "bot");
-    await logMessage(customer.id, businessId, "outbound", matchedFaq.answer, "faq");
+    const reply = matchedFaq.answer;
+    const result = await sendWhatsAppMessage(phone, reply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", reply, "faq");
     logger.info({ phone, businessId, faqId: matchedFaq.id }, "FAQ match — no AI call");
     return;
   }
@@ -436,13 +510,15 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
 
   // ── Booking intent ────────────────────────────────────────────────────────
   if (detectBookingIntent(text)) {
-    const reply = "I'd love to help you book an appointment! Please tell me: what service you need, your preferred date, and time. Our team will confirm shortly. 📅";
-    await db.insert(bookingsTable).values({
-      customerId: customer.id,
-      businessId,
-      notes: text,
-      status: "pending",
-    });
+    let reply = "I'd love to help you book an appointment! Please tell me: what service you need, your preferred date, and time. Our team will confirm shortly. 📅";
+    if (!customer.flowState) {
+      await db.insert(bookingsTable).values({
+        customerId: customer.id,
+        businessId,
+        notes: text,
+        status: "pending",
+      });
+    }
     const result = await sendWhatsAppMessage(phone, reply, creds);
     if (!result.ok) await recordDeliveryFailure(businessId, phone, reply, result, "bot");
     await logMessage(customer.id, businessId, "outbound", reply, "booking");
@@ -451,6 +527,14 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
   }
 
   // ── OpenAI fallback ───────────────────────────────────────────────────────
+  if (customer.flowState) {
+    const guidedNoMatchReply = "I didn't get that. Please choose 1-5 or type menu/back.";
+    const result = await sendWhatsAppMessage(phone, guidedNoMatchReply, creds);
+    if (!result.ok) await recordDeliveryFailure(businessId, phone, guidedNoMatchReply, result, "bot");
+    await logMessage(customer.id, businessId, "outbound", guidedNoMatchReply, "none");
+    logger.info({ phone, businessId, flowState: customer.flowState }, "Guided flow no-match handled without AI fallback");
+    return;
+  }
   if (!aiEnabledForBusiness) {
     const safeReply = getSafeNoMatchReply(settings, business.name);
     const result = await sendWhatsAppMessage(phone, safeReply, creds);
@@ -466,3 +550,4 @@ export async function handleIncomingMessage(phone: string, text: string, phoneNu
   if (!result.ok) await recordDeliveryFailure(businessId, phone, aiReply, result, "bot");
   await logMessage(customer.id, businessId, "outbound", aiReply, "ai");
 }
+
