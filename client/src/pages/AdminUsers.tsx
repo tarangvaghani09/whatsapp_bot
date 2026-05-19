@@ -46,6 +46,12 @@ type EditOwnerForm = {
 const EMPTY_OWNER: OwnerForm = { email: "", password: "", name: "", businessIds: [] };
 const EMPTY_EDIT_OWNER: EditOwnerForm = { id: 0, email: "", name: "", password: "", businessIds: [], isActive: true };
 
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
+
 export default function AdminUsersPage() {
   const { toast } = useToast();
   const { data } = useListBusinesses();
@@ -67,7 +73,7 @@ export default function AdminUsersPage() {
     setOwnersLoading(true);
     setOwnersError("");
     try {
-      const res = await fetch("/api/business-owners");
+      const res = await fetch(apiUrl("/api/business-owners"), { credentials: "include" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         setOwnersError(body?.error || "Failed to load admin users.");
@@ -102,9 +108,10 @@ export default function AdminUsersPage() {
     if (f.businessIds.length === 0) { setOwnerError("Select at least one business."); return; }
     setSaving(true);
     try {
-      const res = await fetch("/api/business-owners", {
+      const res = await fetch(apiUrl("/api/business-owners"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email: f.email.trim().toLowerCase(), password: f.password.trim(), name: f.name.trim(), businessIds: f.businessIds }),
       });
       if (!res.ok) {
@@ -135,9 +142,10 @@ export default function AdminUsersPage() {
     if (f.businessIds.length === 0) { setEditOwnerError("Select at least one business."); return; }
     setSaving(true);
     try {
-      const res = await fetch(`/api/business-owners/${f.id}`, {
+      const res = await fetch(apiUrl(`/api/business-owners/${f.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           email: f.email.trim().toLowerCase(),
           name: f.name.trim(),
@@ -162,9 +170,10 @@ export default function AdminUsersPage() {
   async function toggleStatus(owner: OwnerItem) {
     setSaving(true);
     try {
-      const res = await fetch(`/api/business-owners/${owner.id}`, {
+      const res = await fetch(apiUrl(`/api/business-owners/${owner.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           email: owner.email,
           name: owner.name ?? owner.email,
@@ -188,7 +197,7 @@ export default function AdminUsersPage() {
     if (!ownerDeleteConfirm.id) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/business-owners/${ownerDeleteConfirm.id}`, { method: "DELETE" });
+      const res = await fetch(apiUrl(`/api/business-owners/${ownerDeleteConfirm.id}`), { method: "DELETE", credentials: "include" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         toast({ title: body?.error || "Failed to delete admin", variant: "destructive" });

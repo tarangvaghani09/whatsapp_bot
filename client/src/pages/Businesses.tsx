@@ -78,6 +78,12 @@ const EMPTY_EDIT_OWNER: EditOwnerForm = {
   isActive: true,
 };
 
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
+
 export default function BusinessesPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -121,7 +127,7 @@ export default function BusinessesPage() {
     setOwnersLoading(true);
     setOwnersError("");
     try {
-      const res = await fetch("/api/business-owners");
+      const res = await fetch(apiUrl("/api/business-owners"), { credentials: "include" });
       if (!res.ok) {
         if (res.status === 403) return;
         const body = await res.json().catch(() => ({}));
@@ -136,7 +142,7 @@ export default function BusinessesPage() {
   }
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const superAdmin = data?.user?.role === "super_admin";
@@ -150,9 +156,10 @@ export default function BusinessesPage() {
     if (!seedType || !businessId) return;
     setSeeding(true);
     try {
-      const res = await fetch(`/api/seed?businessId=${businessId}`, {
+      const res = await fetch(apiUrl(`/api/seed?businessId=${businessId}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ businessType: seedType }),
       });
       if (!res.ok) throw new Error("Seed failed");
@@ -250,9 +257,10 @@ export default function BusinessesPage() {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/business-owners", {
+      const res = await fetch(apiUrl("/api/business-owners"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           password: password.trim(),
@@ -321,9 +329,10 @@ export default function BusinessesPage() {
         businessIds: f.businessIds,
         isActive: f.isActive,
       };
-      const res = await fetch(`/api/business-owners/${f.id}`, {
+      const res = await fetch(apiUrl(`/api/business-owners/${f.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -342,9 +351,10 @@ export default function BusinessesPage() {
   async function toggleOwnerStatus(owner: OwnerItem) {
     setSaving(true);
     try {
-      const res = await fetch(`/api/business-owners/${owner.id}`, {
+      const res = await fetch(apiUrl(`/api/business-owners/${owner.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           email: owner.email,
           name: owner.name ?? owner.email,
@@ -368,7 +378,7 @@ export default function BusinessesPage() {
     if (!ownerDeleteConfirm.id) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/business-owners/${ownerDeleteConfirm.id}`, { method: "DELETE" });
+      const res = await fetch(apiUrl(`/api/business-owners/${ownerDeleteConfirm.id}`), { method: "DELETE", credentials: "include" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         toast({ title: body?.error || "Failed to delete admin user", variant: "destructive" });
