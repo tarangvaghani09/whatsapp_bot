@@ -81,7 +81,9 @@ function Router({ authed, role, setAuthed, refreshSession }: RouterProps) {
   }, [authed, authPath, role, restrictedForBusinessAdmin, setLocation]);
 
   if (!authed) {
-    if (!authPath) return null;
+    if (!authPath) {
+      return <div className="min-h-screen grid place-items-center text-gray-500">Redirecting to login...</div>;
+    }
     return (
       <>
         <PageTitleManager />
@@ -90,7 +92,9 @@ function Router({ authed, role, setAuthed, refreshSession }: RouterProps) {
     );
   }
 
-  if (authPath) return null;
+  if (authPath) {
+    return <div className="min-h-screen grid place-items-center text-gray-500">Opening dashboard...</div>;
+  }
 
   return (
     <BusinessProvider>
