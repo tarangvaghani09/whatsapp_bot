@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useListBusinesses, useCreateBusiness, useUpdateBusiness, useDeleteBusiness } from "@workspace/api-client-react";
+import { useListBusinesses } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,11 +88,8 @@ export default function BusinessesPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { businessId, setBusinessId, refetch: refetchContext } = useBusinessContext();
-  const { data, isLoading } = useListBusinesses();
+  const { data, isLoading, refetch } = useListBusinesses();
   const businesses = Array.isArray(data) ? data : [];
-  const createBusiness = useCreateBusiness();
-  const updateBusiness = useUpdateBusiness();
-  const deleteBusiness = useDeleteBusiness();
 
   const [dialog, setDialog] = useState<{ open: boolean; id?: number; form: Form }>({ open: false, form: EMPTY });
   const [ownerDialog, setOwnerDialog] = useState<{ open: boolean; form: OwnerForm }>({ open: false, form: EMPTY_OWNER });
@@ -120,8 +117,21 @@ export default function BusinessesPage() {
 
   const invalidate = async () => {
     await qc.invalidateQueries({ queryKey: ["/api/businesses"] });
+    await refetch();
     await refetchContext();
   };
+
+  async function parseApiError(res: Response): Promise<string> {
+    try {
+      const json = await res.json();
+      if (json?.error && typeof json.error === "string") return json.error;
+    } catch {
+      // ignore
+    }
+    const txt = await res.text().catch(() => "");
+    if (txt) return txt.slice(0, 220);
+    return `HTTP ${res.status}`;
+  }
 
   async function loadOwners() {
     setOwnersLoading(true);
@@ -227,11 +237,24 @@ export default function BusinessesPage() {
       };
 
       if (dialog.id) {
-        await updateBusiness.mutateAsync({ id: dialog.id, data: payload });
+        const res = await fetch(apiUrl(`/api/businesses/${dialog.id}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(await parseApiError(res));
         toast({ title: "Business updated successfully", variant: "success" });
       } else {
-        const created = await createBusiness.mutateAsync({ data: payload });
-        setBusinessId(created.id);
+        const res = await fetch(apiUrl("/api/businesses"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(await parseApiError(res));
+        const created = await res.json();
+        if (created?.id) setBusinessId(created.id);
         toast({ title: "Business created successfully", variant: "success" });
       }
       await invalidate();
@@ -395,7 +418,15 @@ export default function BusinessesPage() {
 
   async function handleDelete() {
     if (!deleteConfirm.id) return;
-    await deleteBusiness.mutateAsync({ id: deleteConfirm.id });
+    const res = await fetch(apiUrl(`/api/businesses/${deleteConfirm.id}`), {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const msg = await parseApiError(res);
+      toast({ title: "Delete failed", description: msg, variant: "destructive" });
+      return;
+    }
     toast({ title: "Business deleted" });
     await invalidate();
     setDeleteConfirm({ open: false });
