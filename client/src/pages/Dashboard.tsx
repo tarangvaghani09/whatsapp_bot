@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { MessageCircle, Users, CalendarCheck, Brain, Banknote, TrendingUp, Zap, Star, PartyPopper } from "lucide-react";
 import { useBusinessId } from "@/context/BusinessContext";
+import { Link } from "wouter";
 
 const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444"];
 
@@ -52,11 +53,15 @@ export default function DashboardPage() {
       <div className="w-full">
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">No data yet for dashboard.</p>
-          <div className="mt-5 w-full min-h-[68vh] rounded-xl border border-dashed border-gray-300 bg-white p-8 flex items-center justify-center">
+          <div className="mt-5 w-full min-h-[68vh] p-8 flex items-center justify-center">
             <div className="text-center">
               <p className="text-xl font-semibold text-gray-700">No business selected or no records found.</p>
               <p className="text-base text-gray-500 mt-2">
-                Click <span className="font-semibold text-green-700">Add your first business</span> and then add FAQs/services/bookings to see analytics.
+                Click{" "}
+                <Link href="/businesses" className="font-semibold text-green-700 hover:underline">
+                  Add your first business
+                </Link>{" "}
+                and then add FAQs/services/bookings to see analytics.
               </p>
             </div>
           </div>
