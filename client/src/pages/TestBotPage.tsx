@@ -76,10 +76,10 @@ export default function TestBotPage() {
   const businessId = useBusinessId();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [pending, setPending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionIdRef = useRef<string>("");
-  const simulate = useSimulateMessage();
 
   if (!sessionIdRef.current) {
     sessionIdRef.current =
