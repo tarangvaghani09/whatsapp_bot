@@ -6,6 +6,12 @@ type Props = {
   onAuthed: () => void;
 };
 
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
+
 async function parseError(res: Response): Promise<string> {
   try {
     const data = await res.json();
@@ -41,7 +47,7 @@ export default function AuthPage({ onAuthed }: Props) {
   async function submitLogin() {
     setBusy(true); setErr(""); setMsg("");
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -59,7 +65,7 @@ export default function AuthPage({ onAuthed }: Props) {
   async function submitForgot() {
     setBusy(true); setErr(""); setMsg("");
     try {
-      const res = await fetch("/api/auth/forgot-password", {
+      const res = await fetch(apiUrl("/api/auth/forgot-password"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email }),
@@ -80,7 +86,7 @@ export default function AuthPage({ onAuthed }: Props) {
       if (newPassword !== confirmPassword) {
         throw new Error("Password and confirm password must match");
       }
-      const res = await fetch("/api/auth/reset-password", {
+      const res = await fetch(apiUrl("/api/auth/reset-password"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token, newPassword }),
