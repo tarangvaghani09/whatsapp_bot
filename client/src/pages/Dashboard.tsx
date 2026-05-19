@@ -49,6 +49,7 @@ export default function DashboardPage() {
   }
 
   if (!stats) {
+    const hasBusinessSelected = typeof businessId === "number";
     return (
       <div className="w-full">
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
@@ -58,14 +59,25 @@ export default function DashboardPage() {
               <div className="mb-4 flex justify-center">
                 <LayoutDashboard className="w-12 h-12 text-gray-300" />
               </div>
-              <p className="text-xl font-semibold text-gray-700">No business selected or no records found.</p>
-              <p className="text-base text-gray-500 mt-2">
-                Click{" "}
-                <Link href="/businesses" className="font-semibold text-green-700 hover:underline">
-                  Add your first business
-                </Link>{" "}
-                and then add FAQs/services/bookings to see analytics.
-              </p>
+              {hasBusinessSelected ? (
+                <>
+                  <p className="text-xl font-semibold text-gray-700">No records found for selected business.</p>
+                  <p className="text-base text-gray-500 mt-2">
+                    Add FAQs/services/bookings to start seeing analytics.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xl font-semibold text-gray-700">No business selected.</p>
+                  <p className="text-base text-gray-500 mt-2">
+                    Click{" "}
+                    <Link href="/businesses" className="font-semibold text-green-700 hover:underline">
+                      Add your first business
+                    </Link>{" "}
+                    and then add FAQs/services/bookings to see analytics.
+                  </p>
+                </>
+              )}
             </div>
           </div>
       </div>
