@@ -25,6 +25,11 @@ const BusinessContext = createContext<BusinessContextValue>({
 });
 
 const STORAGE_KEY = "whatsapp_bot_selected_business_id";
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
 
 export function BusinessProvider({ children }: { children: ReactNode }) {
   const [businesses, setBusinesses] = useState<BusinessInfo[]>([]);
@@ -36,7 +41,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
 
   const fetchBusinesses = async () => {
     try {
-      const res = await fetch("/api/businesses");
+      const res = await fetch(apiUrl("/api/businesses"), { credentials: "include" });
       if (!res.ok) return;
       const data: BusinessInfo[] = await res.json();
       setBusinesses(data);

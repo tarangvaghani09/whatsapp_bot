@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const STORAGE_PREFIX = "whatsapp_bot_last_seen_";
 const POLL_INTERVAL_MS = 30_000;
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
 
 function storageKey(businessId: number | undefined) {
   return `${STORAGE_PREFIX}${businessId ?? "default"}`;
@@ -30,7 +35,7 @@ export function useUnreadMessages(businessId: number | undefined) {
     if (since) params.append("since", since);
 
     try {
-      const res = await fetch(`/api/messages/unread-count?${params}`);
+      const res = await fetch(apiUrl(`/api/messages/unread-count?${params}`), { credentials: "include" });
       if (!res.ok) return;
       const data: { count: number } = await res.json();
       setCount(data.count);

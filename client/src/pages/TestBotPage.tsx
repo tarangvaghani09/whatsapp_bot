@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { useSimulateMessage } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Send, Bot, User, FlaskConical, Zap, BookOpen, Wrench, CalendarCheck, Sparkles, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,28 +23,28 @@ const REPLY_CONFIG: Record<ReplyType, { label: string; color: string; dot: strin
     color: "bg-green-100 text-green-700 border-green-200",
     dot: "bg-green-500",
     icon: <BookOpen className="w-3 h-3" />,
-    desc: "Answered from FAQ database — no AI cost",
+    desc: "Answered from FAQ database â no AI cost",
   },
   service: {
     label: "Service Match",
     color: "bg-blue-100 text-blue-700 border-blue-200",
     dot: "bg-blue-500",
     icon: <Wrench className="w-3 h-3" />,
-    desc: "Answered from service/pricing database — no AI cost",
+    desc: "Answered from service/pricing database â no AI cost",
   },
   booking: {
     label: "Booking Intent",
     color: "bg-amber-100 text-amber-700 border-amber-200",
     dot: "bg-amber-500",
     icon: <CalendarCheck className="w-3 h-3" />,
-    desc: "Detected booking intent — no AI cost",
+    desc: "Detected booking intent â no AI cost",
   },
   ai: {
     label: "AI Fallback",
     color: "bg-red-100 text-red-700 border-red-200",
     dot: "bg-red-500",
     icon: <Sparkles className="w-3 h-3" />,
-    desc: "No FAQ/service match — OpenAI was called",
+    desc: "No FAQ/service match â OpenAI was called",
   },
   none: {
     label: "No Match",
@@ -66,6 +65,12 @@ const EXAMPLE_MESSAGES = [
 ];
 
 let nextId = 1;
+
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
 
 export default function TestBotPage() {
   const businessId = useBusinessId();
@@ -99,56 +104,51 @@ export default function TestBotPage() {
     setMessages((prev) => [...prev, userMsg, thinkingMsg]);
     setInput("");
 
-    simulate.mutate(
-      { data: { message: trimmed, sessionId: sessionIdRef.current }, params: { businessId } },
-      {
-        onSuccess: (data) => {
-          const responseText = (data.response ?? "").trim();
-          setMessages((prev) => {
-            if (!responseText) return prev.filter((m) => !m.isThinking);
-            return prev.map((m) =>
-              m.isThinking
-                ? {
-                    ...m,
-                    text: data.response,
-                    replyType: data.replyType as ReplyType,
-                    matchedFaqQuestion: data.matchedFaqQuestion,
-                    matchedServiceName: data.matchedServiceName,
-                    aiTokensUsed: data.aiTokensUsed,
-                    isThinking: false,
-                  }
-                : m,
-            );
-          });
-        },
-        onError: (err: unknown) => {
-          const e = err as {
-            message?: string;
-            response?: { status?: number; data?: { error?: string } };
-          };
-          const status = e?.response?.status;
-          const serverError = e?.response?.data?.error ?? "";
-          const message = e?.message ?? "";
-          const isRateLimited =
-            status === 429 ||
-            /too many requests/i.test(serverError) ||
-            /too many requests/i.test(message) ||
-            /rate limit/i.test(serverError) ||
-            /rate limit/i.test(message);
-          const errorText = isRateLimited
-            ? "You're sending messages too quickly. Please wait a minute and try again."
-            : "Error � could not get a response. Check the server logs.";
+    setPending(true);
+    (async () => {
+      try {
+        const qs = businessId ? `?businessId=${businessId}` : "";
+        const res = await fetch(apiUrl(`/api/simulate${qs}`), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ message: trimmed, sessionId: sessionIdRef.current }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data) {
+          throw new Error((data && typeof data.error === "string" && data.error) || `HTTP ${res.status}`);
+        }
 
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.isThinking
-                ? { ...m, text: errorText, isThinking: false, replyType: "none" }
-                : m,
-            ),
+        const responseText = (data.response ?? "").trim();
+        setMessages((prev) => {
+          if (!responseText) return prev.filter((m) => !m.isThinking);
+          return prev.map((m) =>
+            m.isThinking
+              ? {
+                  ...m,
+                  text: data.response,
+                  replyType: data.replyType as ReplyType,
+                  matchedFaqQuestion: data.matchedFaqQuestion,
+                  matchedServiceName: data.matchedServiceName,
+                  aiTokensUsed: data.aiTokensUsed,
+                  isThinking: false,
+                }
+              : m,
           );
-        },
-      },
-    );
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        const isRateLimited = /429|too many requests|rate limit/i.test(msg);
+        const errorText = isRateLimited
+          ? "You're sending messages too quickly. Please wait a minute and try again."
+          : "Error - could not get a response. Check the server logs.";
+        setMessages((prev) =>
+          prev.map((m) => (m.isThinking ? { ...m, text: errorText, isThinking: false, replyType: "none" } : m)),
+        );
+      } finally {
+        setPending(false);
+      }
+    })();
 
     setTimeout(() => inputRef.current?.focus(), 50);
   }
@@ -160,7 +160,7 @@ export default function TestBotPage() {
     }
   }
 
-  const canSend = !!input.trim() && !simulate.isPending;
+  const canSend = !!input.trim() && !pending;
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-5rem)] sm:h-[calc(100vh-7rem)]">
@@ -172,7 +172,7 @@ export default function TestBotPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Test Bot</h1>
             <p className="text-xs sm:text-sm text-gray-500 leading-tight">
-              Simulate messages — see which reply path fires
+              Simulate messages â see which reply path fires
             </p>
           </div>
         </div>
@@ -286,8 +286,8 @@ export default function TestBotPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type a customer message…"
-                disabled={simulate.isPending}
+                placeholder="Type a customer messageâ¦"
+                disabled={pending}
                 autoFocus
                 className="w-full h-11 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-green-400 focus:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
               />
@@ -297,7 +297,7 @@ export default function TestBotPage() {
               disabled={!canSend}
               className="h-11 w-11 flex-shrink-0 rounded-xl bg-gradient-to-br from-green-500 to-green-600 text-white flex items-center justify-center shadow-lg shadow-green-200 hover:from-green-600 hover:to-green-700 active:scale-[0.95] transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
             >
-              {simulate.isPending ? (
+              {pending ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <Send className="w-4 h-4" />

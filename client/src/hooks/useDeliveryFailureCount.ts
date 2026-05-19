@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 const POLL_MS = 60_000;
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
 
 export function useDeliveryFailureCount(businessId: number | undefined) {
   const [count, setCount] = useState(0);
@@ -12,7 +17,7 @@ export function useDeliveryFailureCount(businessId: number | undefined) {
     const bid = bidRef.current;
     if (bid === undefined) return;
     try {
-      const res = await fetch(`/api/delivery-failures?businessId=${bid}`);
+      const res = await fetch(apiUrl(`/api/delivery-failures?businessId=${bid}`), { credentials: "include" });
       if (!res.ok) return;
       const data: unknown[] = await res.json();
       setCount(data.length);

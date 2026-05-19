@@ -24,6 +24,11 @@ import { CheckCircle, XCircle, Trash2, Calendar, Clock, Phone, User, CalendarChe
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useBusinessId } from "@/context/BusinessContext";
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
 
 const STATUS_TABS = [
   { value: "all", label: "All" },
@@ -168,9 +173,10 @@ export default function BookingsPage() {
     if (!reschedule.bookingId || !reschedule.date || !reschedule.time) return;
     setRescheduling(true);
     try {
-      const res = await fetch(`/api/bookings/${reschedule.bookingId}/reschedule?businessId=${businessId ?? ""}`, {
+      const res = await fetch(apiUrl(`/api/bookings/${reschedule.bookingId}/reschedule?businessId=${businessId ?? ""}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ requestedDate: reschedule.date, requestedTime: reschedule.time }),
       });
       if (!res.ok) throw new Error("Reschedule failed");

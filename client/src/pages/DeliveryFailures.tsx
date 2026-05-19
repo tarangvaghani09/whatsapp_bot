@@ -6,6 +6,11 @@ import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
   Phone, Trash2, XCircle, Wifi, RefreshCw,
 } from "lucide-react";
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
 
 type DeliveryFailure = {
   id: number;
@@ -121,7 +126,7 @@ export default function DeliveryFailuresPage() {
     if (!businessId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/delivery-failures?businessId=${businessId}`);
+      const res = await fetch(apiUrl(`/api/delivery-failures?businessId=${businessId}`), { credentials: "include" });
       if (!res.ok) return;
       const data: DeliveryFailure[] = await res.json();
       setItems(data);
@@ -136,7 +141,7 @@ export default function DeliveryFailuresPage() {
 
   async function handleDismiss(id: number) {
     try {
-      await fetch(`/api/delivery-failures/${id}?businessId=${businessId}`, { method: "DELETE" });
+      await fetch(apiUrl(`/api/delivery-failures/${id}?businessId=${businessId}`), { method: "DELETE", credentials: "include" });
       setItems((prev) => prev.filter((i) => i.id !== id));
       toast({ title: "Dismissed", description: "Failure removed from the log." });
     } catch {
@@ -147,7 +152,7 @@ export default function DeliveryFailuresPage() {
   async function handleDismissAll() {
     setDismissingAll(true);
     try {
-      await fetch(`/api/delivery-failures/dismiss-all?businessId=${businessId}`, { method: "POST" });
+      await fetch(apiUrl(`/api/delivery-failures/dismiss-all?businessId=${businessId}`), { method: "POST", credentials: "include" });
       setItems([]);
       toast({ title: "All dismissed", description: "Delivery failure log cleared." });
     } catch {

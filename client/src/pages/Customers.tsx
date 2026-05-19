@@ -14,6 +14,11 @@ import { Search, MessageCircle, ArrowLeft, CheckCheck, Bot, User2, CheckSquare, 
 import { format } from "date-fns";
 import { useBusinessId } from "@/context/BusinessContext";
 import { useToast } from "@/hooks/use-toast";
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -275,7 +280,7 @@ function CustomerDetail({ id, phone, name, createdAt, initialTags, open, onClose
       page: String(targetPage),
       limit: String(PAGE_SIZE),
     });
-    const res = await fetch(`/api/messages?${params.toString()}`);
+    const res = await fetch(apiUrl(`/api/messages?${params.toString()}`), { credentials: "include" });
     if (!res.ok) return null;
     const payload: { messages: ChatMessage[]; total: number; page: number; limit: number } = await res.json();
     return payload;
