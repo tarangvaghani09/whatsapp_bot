@@ -50,6 +50,7 @@ export default function AuthPage({ onAuthed }: Props) {
       const res = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) throw new Error(await parseError(res));
@@ -68,6 +69,7 @@ export default function AuthPage({ onAuthed }: Props) {
       const res = await fetch(apiUrl("/api/auth/forgot-password"), {
         method: "POST",
         headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email }),
       });
       if (!res.ok) throw new Error(await parseError(res));
@@ -89,6 +91,7 @@ export default function AuthPage({ onAuthed }: Props) {
       const res = await fetch(apiUrl("/api/auth/reset-password"), {
         method: "POST",
         headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ token, newPassword }),
       });
       if (!res.ok) throw new Error(await parseError(res));

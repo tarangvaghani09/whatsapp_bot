@@ -55,17 +55,23 @@ export function signAuthToken(user: AuthUser): string {
 }
 
 export function setAuthCookie(res: Response, token: string) {
+  const isProd = process.env["NODE_ENV"] === "production";
   res.cookie(JWT_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env["NODE_ENV"] === "production",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: "/",
   });
 }
 
 export function clearAuthCookie(res: Response) {
-  res.clearCookie(JWT_COOKIE, { path: "/" });
+  const isProd = process.env["NODE_ENV"] === "production";
+  res.clearCookie(JWT_COOKIE, {
+    path: "/",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
+  });
 }
 
 export async function ensureAuth(req: Request, res: Response, next: NextFunction) {

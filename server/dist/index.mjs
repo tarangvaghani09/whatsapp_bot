@@ -58225,16 +58225,22 @@ function signAuthToken(user) {
   );
 }
 function setAuthCookie(res, token) {
+  const isProd = process.env["NODE_ENV"] === "production";
   res.cookie(JWT_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env["NODE_ENV"] === "production",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
     maxAge: 7 * 24 * 60 * 60 * 1e3,
     path: "/"
   });
 }
 function clearAuthCookie(res) {
-  res.clearCookie(JWT_COOKIE, { path: "/" });
+  const isProd = process.env["NODE_ENV"] === "production";
+  res.clearCookie(JWT_COOKIE, {
+    path: "/",
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd
+  });
 }
 async function ensureAuth(req, res, next) {
   const cookieToken = req.cookies?.[JWT_COOKIE] ?? null;

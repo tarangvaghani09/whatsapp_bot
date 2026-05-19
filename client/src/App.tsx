@@ -20,6 +20,12 @@ import AdminUsersPage from "@/pages/AdminUsers";
 import { BusinessProvider } from "@/context/BusinessContext";
 import AuthPage from "@/pages/AuthPage";
 
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
@@ -63,7 +69,7 @@ function Router({ authed, role, setAuthed, refreshSession }: RouterProps) {
   const restrictedForBusinessAdmin = location === "/test-bot" || location === "/businesses" || location === "/admin-users";
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
     setAuthed(false);
     setLocation("/login");
   }
@@ -117,7 +123,7 @@ function App() {
 
   async function refreshSession() {
     try {
-      const res = await fetch("/api/auth/me");
+      const res = await fetch(apiUrl("/api/auth/me"), { credentials: "include" });
       if (!res.ok) {
         setAuthed(false);
         setRole("super_admin");

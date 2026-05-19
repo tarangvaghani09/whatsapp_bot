@@ -28,6 +28,12 @@ import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { useDeliveryFailureCount } from "@/hooks/useDeliveryFailureCount";
 type AdminRole = "super_admin" | "business_admin";
 
+function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!base) return path;
+  return `${base.replace(/\/$/, "")}${path}`;
+}
+
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/faqs", label: "FAQs", icon: MessageCircleQuestion },
@@ -147,7 +153,7 @@ export default function Layout({ children, onLogout }: { children: React.ReactNo
   const { count: failureCount, clear: clearFailures } = useDeliveryFailureCount(businessId ?? undefined);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch(apiUrl("/api/auth/me"), { credentials: "include" })
       .then(async (r) => {
         if (!r.ok) return;
         const data = await r.json();
