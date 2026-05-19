@@ -1,7 +1,7 @@
 import { useGetDashboardStats } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { MessageCircle, Users, CalendarCheck, Brain, Banknote, TrendingUp, Zap, Star, PartyPopper } from "lucide-react";
+import { MessageCircle, Users, CalendarCheck, Brain, Banknote, TrendingUp, Zap, Star, PartyPopper, Building2 } from "lucide-react";
 import { useBusinessId } from "@/context/BusinessContext";
 import { Link } from "wouter";
 
@@ -55,6 +55,9 @@ export default function DashboardPage() {
           <p className="text-sm text-gray-500 mt-1">No data yet for dashboard.</p>
           <div className="mt-5 w-full min-h-[68vh] p-8 flex items-center justify-center">
             <div className="text-center">
+              <div className="mb-4 flex justify-center">
+                <Building2 className="w-12 h-12 text-gray-300" />
+              </div>
               <p className="text-xl font-semibold text-gray-700">No business selected or no records found.</p>
               <p className="text-base text-gray-500 mt-2">
                 Click{" "}
