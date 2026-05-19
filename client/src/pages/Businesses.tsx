@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useListBusinesses } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,9 +86,7 @@ function apiUrl(path: string): string {
 export default function BusinessesPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { businessId, setBusinessId, refetch: refetchContext } = useBusinessContext();
-  const { data, isLoading, refetch } = useListBusinesses();
-  const businesses = Array.isArray(data) ? data : [];
+  const { businessId, setBusinessId, refetch: refetchContext, businesses, loading: isLoading } = useBusinessContext();
 
   const [dialog, setDialog] = useState<{ open: boolean; id?: number; form: Form }>({ open: false, form: EMPTY });
   const [ownerDialog, setOwnerDialog] = useState<{ open: boolean; form: OwnerForm }>({ open: false, form: EMPTY_OWNER });
@@ -117,7 +114,6 @@ export default function BusinessesPage() {
 
   const invalidate = async () => {
     await qc.invalidateQueries({ queryKey: ["/api/businesses"] });
-    await refetch();
     await refetchContext();
   };
 
