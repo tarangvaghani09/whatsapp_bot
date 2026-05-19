@@ -2,21 +2,27 @@ import { Router, type IRouter } from "express";
 import { db, deliveryFailuresTable } from "@workspace/db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { BusinessIdQueryParam, resolveBusinessId } from "../lib/resolve-business";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
 router.get("/delivery-failures", async (req, res): Promise<void> => {
-  const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(req, q.data?.businessId);
+  try {
+    const q = BusinessIdQueryParam.safeParse(req.query);
+    const businessId = await resolveBusinessId(req, q.data?.businessId);
 
-  const rows = await db
-    .select()
-    .from(deliveryFailuresTable)
-    .where(and(eq(deliveryFailuresTable.businessId, businessId), isNull(deliveryFailuresTable.resolvedAt)))
-    .orderBy(desc(deliveryFailuresTable.createdAt))
-    .limit(100);
+    const rows = await db
+      .select()
+      .from(deliveryFailuresTable)
+      .where(and(eq(deliveryFailuresTable.businessId, businessId), isNull(deliveryFailuresTable.resolvedAt)))
+      .orderBy(desc(deliveryFailuresTable.createdAt))
+      .limit(100);
 
-  res.json(rows);
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err, query: "/api/delivery-failures", businessId: req.query?.businessId }, "Delivery failures query failed");
+    res.json([]);
+  }
 });
 
 router.delete("/delivery-failures/:id", async (req, res): Promise<void> => {

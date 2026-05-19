@@ -74917,55 +74917,75 @@ var messages_default = router9;
 var import_express10 = __toESM(require_express2(), 1);
 var router10 = (0, import_express10.Router)();
 router10.get("/dashboard/stats", async (req, res) => {
-  const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(req, q.data?.businessId);
-  const now = /* @__PURE__ */ new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const [
-    msgStats,
-    totalCustomers,
-    pendingBookings,
-    completedBookings,
-    avgRatingResult,
-    aiStats,
-    todayMessages
-  ] = await Promise.all([
-    db.select({ replyType: botMessagesTable.replyType, cnt: count() }).from(botMessagesTable).where(and(eq(botMessagesTable.businessId, businessId), eq(botMessagesTable.direction, "outbound"))).groupBy(botMessagesTable.replyType),
-    db.select({ count: count() }).from(customersTable).where(eq(customersTable.businessId, businessId)),
-    db.select({ count: count() }).from(bookingsTable).where(and(eq(bookingsTable.businessId, businessId), eq(bookingsTable.status, "pending"))),
-    db.select({ count: count() }).from(bookingsTable).where(and(eq(bookingsTable.businessId, businessId), eq(bookingsTable.status, "completed"))),
-    db.select({ avg: avg(bookingsTable.rating) }).from(bookingsTable).where(and(eq(bookingsTable.businessId, businessId), isNotNull(bookingsTable.rating))),
-    db.select({ totalCost: sum(aiUsageTable.estimatedCost), totalTokens: sum(aiUsageTable.totalTokens) }).from(aiUsageTable).where(eq(aiUsageTable.businessId, businessId)),
-    db.select({ count: count() }).from(botMessagesTable).where(and(eq(botMessagesTable.businessId, businessId), sql`${botMessagesTable.createdAt} >= ${todayStart}`))
-  ]);
-  const msgByType = {};
-  let totalMessages = 0;
-  for (const row of msgStats) {
-    msgByType[row.replyType] = row.cnt;
-    totalMessages += row.cnt;
+  try {
+    const q = BusinessIdQueryParam.safeParse(req.query);
+    const businessId = await resolveBusinessId(req, q.data?.businessId);
+    const now = /* @__PURE__ */ new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const [
+      msgStats,
+      totalCustomers,
+      pendingBookings,
+      completedBookings,
+      avgRatingResult,
+      aiStats,
+      todayMessages
+    ] = await Promise.all([
+      db.select({ replyType: botMessagesTable.replyType, cnt: count() }).from(botMessagesTable).where(and(eq(botMessagesTable.businessId, businessId), eq(botMessagesTable.direction, "outbound"))).groupBy(botMessagesTable.replyType),
+      db.select({ count: count() }).from(customersTable).where(eq(customersTable.businessId, businessId)),
+      db.select({ count: count() }).from(bookingsTable).where(and(eq(bookingsTable.businessId, businessId), eq(bookingsTable.status, "pending"))),
+      db.select({ count: count() }).from(bookingsTable).where(and(eq(bookingsTable.businessId, businessId), eq(bookingsTable.status, "completed"))),
+      db.select({ avg: avg(bookingsTable.rating) }).from(bookingsTable).where(and(eq(bookingsTable.businessId, businessId), isNotNull(bookingsTable.rating))),
+      db.select({ totalCost: sum(aiUsageTable.estimatedCost), totalTokens: sum(aiUsageTable.totalTokens) }).from(aiUsageTable).where(eq(aiUsageTable.businessId, businessId)),
+      db.select({ count: count() }).from(botMessagesTable).where(and(eq(botMessagesTable.businessId, businessId), sql`${botMessagesTable.createdAt} >= ${todayStart}`))
+    ]);
+    const msgByType = {};
+    let totalMessages = 0;
+    for (const row of msgStats) {
+      msgByType[row.replyType] = row.cnt;
+      totalMessages += row.cnt;
+    }
+    const faqCount = msgByType["faq"] ?? 0;
+    const serviceCount = msgByType["service"] ?? 0;
+    const bookingCount = msgByType["booking"] ?? 0;
+    const aiCount = msgByType["ai"] ?? 0;
+    const faqSavingsPercent = totalMessages > 0 ? Math.round((faqCount + serviceCount + bookingCount) / totalMessages * 100) : 0;
+    const rawAvg = avgRatingResult[0]?.avg;
+    const avgRating = rawAvg != null ? Math.round(Number(rawAvg) * 10) / 10 : null;
+    res.json({
+      totalMessages,
+      messagesFromFaq: faqCount,
+      messagesFromService: serviceCount,
+      messagesFromBooking: bookingCount,
+      messagesFromAi: aiCount,
+      totalCustomers: totalCustomers[0]?.count ?? 0,
+      pendingBookings: pendingBookings[0]?.count ?? 0,
+      completedBookings: completedBookings[0]?.count ?? 0,
+      avgRating,
+      totalAiCost: Number(aiStats[0]?.totalCost ?? 0),
+      totalAiTokens: Number(aiStats[0]?.totalTokens ?? 0),
+      faqSavingsPercent,
+      todayMessages: todayMessages[0]?.count ?? 0
+    });
+  } catch (err) {
+    logger.error({ err, query: "/api/dashboard/stats", businessId: req.query?.businessId }, "Dashboard stats query failed");
+    res.json({
+      totalMessages: 0,
+      messagesFromFaq: 0,
+      messagesFromService: 0,
+      messagesFromBooking: 0,
+      messagesFromAi: 0,
+      totalCustomers: 0,
+      pendingBookings: 0,
+      completedBookings: 0,
+      avgRating: null,
+      totalAiCost: 0,
+      totalAiTokens: 0,
+      faqSavingsPercent: 0,
+      todayMessages: 0,
+      degraded: true
+    });
   }
-  const faqCount = msgByType["faq"] ?? 0;
-  const serviceCount = msgByType["service"] ?? 0;
-  const bookingCount = msgByType["booking"] ?? 0;
-  const aiCount = msgByType["ai"] ?? 0;
-  const faqSavingsPercent = totalMessages > 0 ? Math.round((faqCount + serviceCount + bookingCount) / totalMessages * 100) : 0;
-  const rawAvg = avgRatingResult[0]?.avg;
-  const avgRating = rawAvg != null ? Math.round(Number(rawAvg) * 10) / 10 : null;
-  res.json({
-    totalMessages,
-    messagesFromFaq: faqCount,
-    messagesFromService: serviceCount,
-    messagesFromBooking: bookingCount,
-    messagesFromAi: aiCount,
-    totalCustomers: totalCustomers[0]?.count ?? 0,
-    pendingBookings: pendingBookings[0]?.count ?? 0,
-    completedBookings: completedBookings[0]?.count ?? 0,
-    avgRating,
-    totalAiCost: Number(aiStats[0]?.totalCost ?? 0),
-    totalAiTokens: Number(aiStats[0]?.totalTokens ?? 0),
-    faqSavingsPercent,
-    todayMessages: todayMessages[0]?.count ?? 0
-  });
 });
 var dashboard_default = router10;
 
@@ -75578,10 +75598,15 @@ var canned_responses_default = router15;
 var import_express16 = __toESM(require_express2(), 1);
 var router16 = (0, import_express16.Router)();
 router16.get("/delivery-failures", async (req, res) => {
-  const q = BusinessIdQueryParam.safeParse(req.query);
-  const businessId = await resolveBusinessId(req, q.data?.businessId);
-  const rows = await db.select().from(deliveryFailuresTable).where(and(eq(deliveryFailuresTable.businessId, businessId), isNull(deliveryFailuresTable.resolvedAt))).orderBy(desc(deliveryFailuresTable.createdAt)).limit(100);
-  res.json(rows);
+  try {
+    const q = BusinessIdQueryParam.safeParse(req.query);
+    const businessId = await resolveBusinessId(req, q.data?.businessId);
+    const rows = await db.select().from(deliveryFailuresTable).where(and(eq(deliveryFailuresTable.businessId, businessId), isNull(deliveryFailuresTable.resolvedAt))).orderBy(desc(deliveryFailuresTable.createdAt)).limit(100);
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err, query: "/api/delivery-failures", businessId: req.query?.businessId }, "Delivery failures query failed");
+    res.json([]);
+  }
 });
 router16.delete("/delivery-failures/:id", async (req, res) => {
   const q = BusinessIdQueryParam.safeParse(req.query);
