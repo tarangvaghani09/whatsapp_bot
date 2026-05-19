@@ -75666,6 +75666,15 @@ function getAllowedOrigins() {
   const appOrigin = process.env["APP_ORIGIN"]?.trim();
   return appOrigin ? [appOrigin] : [];
 }
+function isAllowedVercelPreview(origin) {
+  if (process.env["ALLOW_VERCEL_PREVIEWS"] !== "true") return false;
+  try {
+    const host = new URL(origin).hostname;
+    return host.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -75693,7 +75702,7 @@ app.use(
         cb(null, true);
         return;
       }
-      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin) || isAllowedVercelPreview(origin)) {
         cb(null, true);
         return;
       }

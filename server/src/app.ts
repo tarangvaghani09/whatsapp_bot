@@ -17,6 +17,16 @@ function getAllowedOrigins(): string[] {
   return appOrigin ? [appOrigin] : [];
 }
 
+function isAllowedVercelPreview(origin: string): boolean {
+  if (process.env["ALLOW_VERCEL_PREVIEWS"] !== "true") return false;
+  try {
+    const host = new URL(origin).hostname;
+    return host.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
+
 app.use(
   pinoHttp({
     logger,
@@ -44,7 +54,11 @@ app.use(
         cb(null, true);
         return;
       }
-      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      if (
+        allowedOrigins.length === 0 ||
+        allowedOrigins.includes(origin) ||
+        isAllowedVercelPreview(origin)
+      ) {
         cb(null, true);
         return;
       }
