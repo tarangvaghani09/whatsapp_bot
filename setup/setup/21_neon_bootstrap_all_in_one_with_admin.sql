@@ -297,6 +297,20 @@ ON CONFLICT (user_id, business_id) DO NOTHING;
 
 -- ===== END whatsapp-bot/setup/setup/08_seed_business_owners.sql =====
 
+-- ===== Compatibility fix for admin owner APIs =====
+-- Required by /api/business-owners routes
+ALTER TABLE admin_users
+  ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'super_admin',
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+
+CREATE TABLE IF NOT EXISTS user_business_access (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+  business_id INTEGER NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, business_id)
+);
+
 
 -- ===== BEGIN whatsapp-bot/setup/setup/09_add_no_match_message.sql =====
 
