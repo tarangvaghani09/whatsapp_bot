@@ -73969,7 +73969,7 @@ router4.get("/business-owners", async (req, res) => {
     createdAt: adminUsersTable.createdAt,
     businessId: userBusinessAccessTable.businessId,
     businessName: businessesTable.name
-  }).from(adminUsersTable).leftJoin(userBusinessAccessTable, eq(userBusinessAccessTable.userId, adminUsersTable.id)).leftJoin(businessesTable, eq(businessesTable.id, userBusinessAccessTable.businessId)).where(eq(adminUsersTable.role, "business_admin"));
+  }).from(adminUsersTable).leftJoin(userBusinessAccessTable, eq(userBusinessAccessTable.userId, adminUsersTable.id)).leftJoin(businessesTable, eq(businessesTable.id, userBusinessAccessTable.businessId)).where(or(eq(adminUsersTable.role, "business_admin"), eq(adminUsersTable.role, "super_admin")));
   const grouped = /* @__PURE__ */ new Map();
   for (const row of users) {
     if (!grouped.has(row.id)) {

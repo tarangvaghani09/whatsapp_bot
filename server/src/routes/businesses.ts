@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, businessesTable, settingsTable, userBusinessAccessTable, adminUsersTable } from "@workspace/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { logger } from "../lib/logger";
@@ -193,7 +193,7 @@ router.get("/business-owners", async (req, res): Promise<void> => {
     .from(adminUsersTable)
     .leftJoin(userBusinessAccessTable, eq(userBusinessAccessTable.userId, adminUsersTable.id))
     .leftJoin(businessesTable, eq(businessesTable.id, userBusinessAccessTable.businessId))
-    .where(eq(adminUsersTable.role, "business_admin"));
+    .where(or(eq(adminUsersTable.role, "business_admin"), eq(adminUsersTable.role, "super_admin")));
 
   const grouped = new Map<number, {
     id: number;

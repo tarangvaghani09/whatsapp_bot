@@ -248,6 +248,9 @@ export default function AdminUsersPage() {
                     <div className="flex items-center gap-2">
                       <UserCog className={`w-4 h-4 ${owner.isActive ? "text-sky-600" : "text-gray-500"}`} />
                       <p className="font-semibold text-gray-900">{owner.name || owner.email}</p>
+                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${owner.role === "super_admin" ? "bg-violet-100 text-violet-700" : "bg-sky-100 text-sky-700"}`}>
+                        {owner.role === "super_admin" ? "Super Admin" : "Business Admin"}
+                      </span>
                       <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${owner.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-700"}`}>
                         {owner.isActive ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
                         {owner.isActive ? "Active" : "Disabled"}
@@ -257,9 +260,13 @@ export default function AdminUsersPage() {
                     <p className="text-xs text-gray-500 mt-1">Business: <span className="font-medium text-gray-700">{owner.businesses.map((b) => b.name).join(", ") || "No business assigned"}</span></p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors" onClick={() => openEdit(owner)}><Pencil className="w-4 h-4" /></button>
-                    <button className="p-2 rounded-lg hover:bg-amber-50 hover:text-amber-600 text-gray-400 transition-colors" onClick={() => setStatusConfirm({ open: true, owner })}><CirclePower className="w-4 h-4" /></button>
-                    <button className="p-2 rounded-lg hover:bg-red-50 hover:text-red-500 text-gray-400 transition-colors" onClick={() => setOwnerDeleteConfirm({ open: true, id: owner.id, name: owner.name ?? owner.email })}><Trash2 className="w-4 h-4" /></button>
+                    {owner.role !== "super_admin" ? (
+                      <>
+                        <button className="p-2 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors" onClick={() => openEdit(owner)}><Pencil className="w-4 h-4" /></button>
+                        <button className="p-2 rounded-lg hover:bg-amber-50 hover:text-amber-600 text-gray-400 transition-colors" onClick={() => setStatusConfirm({ open: true, owner })}><CirclePower className="w-4 h-4" /></button>
+                        <button className="p-2 rounded-lg hover:bg-red-50 hover:text-red-500 text-gray-400 transition-colors" onClick={() => setOwnerDeleteConfirm({ open: true, id: owner.id, name: owner.name ?? owner.email })}><Trash2 className="w-4 h-4" /></button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </CardContent>
