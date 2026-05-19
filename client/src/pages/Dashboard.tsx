@@ -47,7 +47,20 @@ export default function DashboardPage() {
     );
   }
 
-  if (!stats) return null;
+  if (!stats) {
+    return (
+      <div className="max-w-3xl">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">No data yet for dashboard.</p>
+        <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-white p-6">
+          <p className="text-sm font-medium text-gray-700">No business selected or no records found.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Click <span className="font-semibold text-green-700">Add your first business</span> and then add FAQs/services/bookings to see analytics.
+          </p>
+        </div>
+      </div>
+    );
+  }
   const safe = {
     totalMessages: stats.totalMessages ?? 0,
     totalCustomers: stats.totalCustomers ?? 0,
